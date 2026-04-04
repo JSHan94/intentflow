@@ -5,24 +5,22 @@ interface QuickActionsProps {
 }
 
 const ACTIONS = [
-  { label: 'Sweep All INIT to L1', intent: 'Sweep all my INIT into Initia L1', icon: '↗' },
-  { label: 'Bridge Assets', intent: 'Bridge my assets to another rollup', icon: '⇄' },
-  { label: 'Stake INIT', intent: 'Stake my INIT on Initia L1', icon: '◎' },
+  { label: 'Sweep All', intent: 'Sweep all my INIT into Initia L1', color: '#CCFF00' },
+  { label: 'Bridge', intent: 'Bridge my assets to another rollup', color: 'white' },
+  { label: 'Stake', intent: 'Stake my INIT on Initia L1', color: 'white' },
 ];
 
 export function QuickActions({ onAction }: QuickActionsProps) {
   return (
-    <div className="flex flex-wrap justify-center gap-2">
+    <div className="flex flex-wrap gap-2">
       {ACTIONS.map((action) => (
         <button
           key={action.label}
           onClick={() => onAction(action.intent)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border-[1.5px] border-[#D4D4D4] bg-white
-            font-mono text-[10px] text-[#6B6B6B]
-            hover:border-[#0D9488] hover:text-[#0D9488] hover:bg-[#E0F5F3] transition-colors"
+          className="px-3 py-2 border-[3px] border-black font-mono text-[9px] font-black uppercase tracking-[2px] shadow-[3px_3px_0_#000] hover:shadow-[4px_4px_0_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] transition-all"
+          style={{ background: action.color }}
         >
-          <span>{action.icon}</span>
-          <span>{action.label}</span>
+          {action.label} →
         </button>
       ))}
     </div>

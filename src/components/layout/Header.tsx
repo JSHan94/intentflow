@@ -6,52 +6,47 @@ import { JennieIcon } from '@/components/ui/JennieIcon';
 export function Header({ onHistoryClick }: { onHistoryClick?: () => void }) {
   const { isConnected, address, openConnect, openWallet, disconnect } = useInterwovenKit();
 
-  const truncatedAddress = address
-    ? `${address.slice(0, 8)}...${address.slice(-4)}`
-    : '';
+  const truncated = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : '';
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-3 bg-white border-b-2 border-[#1A1A1A]">
+    <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-5 py-3 bg-[#f5f5f0] border-b-[3px] border-black">
       <div className="flex items-center gap-2">
         <JennieIcon expression="neutral" size="sm" />
-        <span className="font-heading text-lg font-bold tracking-tight text-[#1A1A1A]">IntentFlow</span>
-        <span className="font-mono text-[10px] font-medium px-2 py-0.5 rounded-md border-[1.5px] border-[#D4D4D4] text-[#999]">
-          testnet
-        </span>
+        <span className="font-mono text-sm font-black uppercase tracking-[3px]">IntentFlow</span>
       </div>
 
       <div className="flex items-center gap-3">
         {onHistoryClick && (
           <button
             onClick={onHistoryClick}
-            className="font-mono text-xs text-[#6B6B6B] hover:text-[#1A1A1A] transition-colors"
+            className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#999] hover:text-black transition-colors"
           >
             History
           </button>
         )}
 
         {isConnected ? (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               onClick={openWallet}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-md border-2 border-[#D4D4D4] bg-white font-mono text-xs hover:border-[#1A1A1A] transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 border-[3px] border-black bg-[#CCFF00] font-mono text-[10px] font-black uppercase shadow-[3px_3px_0_#000] hover:shadow-[4px_4px_0_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] transition-all"
             >
-              <span className="w-2 h-2 rounded-full bg-[#0D9488]" />
-              <span>{truncatedAddress}</span>
+              <span className="w-2 h-2 bg-black" />
+              {truncated}
             </button>
             <button
               onClick={disconnect}
-              className="font-mono text-[10px] text-[#999] hover:text-[#DC2626] transition-colors"
+              className="font-mono text-[9px] font-bold uppercase text-[#999] hover:text-[#FF5733] transition-colors"
             >
-              Disconnect
+              ✕
             </button>
           </div>
         ) : (
           <button
             onClick={openConnect}
-            className="px-4 py-1.5 rounded-md bg-[#0D9488] text-white font-mono text-xs font-semibold border-2 border-[#0A7A70] hover:bg-[#0A7A70] transition-colors"
+            className="px-4 py-2 border-[3px] border-black bg-[#FF5733] text-white font-mono text-[10px] font-black uppercase tracking-wider shadow-[3px_3px_0_#000] hover:shadow-[5px_5px_0_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all"
           >
-            Connect Wallet
+            Connect
           </button>
         )}
       </div>

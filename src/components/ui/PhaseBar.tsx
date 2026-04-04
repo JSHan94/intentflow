@@ -27,19 +27,19 @@ function getPhaseState(phase: FlowPhase, currentPhase: FlowPhase): 'done' | 'act
 
 export function PhaseBar({ currentPhase }: PhaseBarProps) {
   return (
-    <div className="flex border-2 border-[#1A1A1A] rounded-md overflow-hidden">
+    <div className="flex border-[3px] border-black overflow-hidden shadow-[3px_3px_0_#000]">
       {PHASES.map((phase, i) => {
         const state = getPhaseState(phase.key, currentPhase);
         return (
           <div
             key={phase.key}
             className={`
-              flex-1 text-center py-2 px-3
-              font-mono text-[10px] font-semibold uppercase tracking-wider
-              ${i < PHASES.length - 1 ? 'border-r-[1.5px] border-[#D4D4D4]' : ''}
-              ${state === 'active' ? 'bg-[#0D9488] text-white' : ''}
-              ${state === 'done' ? 'bg-[#E0F5F3] text-[#0D9488]' : ''}
-              ${state === 'pending' ? 'bg-white text-[#999]' : ''}
+              flex-1 text-center py-2 px-2
+              font-mono text-[9px] font-black uppercase tracking-[2px]
+              ${i < PHASES.length - 1 ? 'border-r-[2px] border-black' : ''}
+              ${state === 'active' ? 'bg-[#CCFF00] text-black' : ''}
+              ${state === 'done' ? 'bg-black text-[#CCFF00]' : ''}
+              ${state === 'pending' ? 'bg-white text-[#ccc]' : ''}
             `}
           >
             {phase.label}

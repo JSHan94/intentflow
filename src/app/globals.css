@@ -1,43 +1,31 @@
 @import "tailwindcss";
 
 :root {
-  --bg-primary: #FAFAF8;
-  --bg-surface: #FFFFFF;
-  --border-default: #D4D4D4;
-  --border-strong: #1A1A1A;
+  /* Neo-Brutalist Palette */
+  --bg: #f5f5f0;
+  --surface: #ffffff;
+  --black: #000000;
+  --lime: #CCFF00;
+  --red: #FF5733;
+  --gray: #999999;
+  --gray-light: #e5e5e0;
 
-  --text-primary: #1A1A1A;
-  --text-secondary: #6B6B6B;
-  --text-muted: #999999;
-
-  --accent: #0D9488;
-  --accent-light: #E0F5F3;
-  --accent-dark: #0A7A70;
-
-  --color-success: #16A34A;
-  --color-success-light: #DCFCE7;
-  --color-warning: #D97706;
-  --color-warning-light: #FEF3C7;
-  --color-error: #DC2626;
-  --color-error-light: #FEE2E2;
-
-  --shadow-sm: 2px 2px 0 rgba(0,0,0,0.06);
-  --shadow-md: 3px 3px 0 rgba(0,0,0,0.08);
-  --radius: 6px;
-  --border-width: 2px;
+  /* Borders & Shadows */
+  --border: 3px solid #000;
+  --shadow: 6px 6px 0 #000;
+  --shadow-sm: 3px 3px 0 #000;
+  --shadow-hover: 8px 8px 0 #000;
+  --radius: 4px;
 }
 
 @theme inline {
-  --color-background: var(--bg-primary);
-  --color-foreground: var(--text-primary);
-  --color-surface: var(--bg-surface);
-  --color-border: var(--border-default);
-  --color-border-strong: var(--border-strong);
-  --color-muted: var(--text-muted);
-  --color-secondary: var(--text-secondary);
-  --color-accent: var(--accent);
-  --color-accent-light: var(--accent-light);
-  --color-accent-dark: var(--accent-dark);
+  --color-background: var(--bg);
+  --color-foreground: var(--black);
+  --color-surface: var(--surface);
+  --color-lime: var(--lime);
+  --color-red: var(--red);
+  --color-gray: var(--gray);
+  --color-gray-light: var(--gray-light);
   --font-sans: var(--font-body);
   --font-mono: var(--font-code);
   --font-heading: var(--font-display);
@@ -48,27 +36,13 @@
 }
 
 body {
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-family: var(--font-body), system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--black);
+  font-family: var(--font-code), 'JetBrains Mono', monospace;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--bg-primary);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--border-default);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
-}
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--black); }

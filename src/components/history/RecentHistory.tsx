@@ -17,16 +17,16 @@ export function RecentHistory() {
 
   return (
     <div className="w-full space-y-2">
-      <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-[#999]">Recent</span>
-      <div className="space-y-1.5">
-        {entries.map((entry) => (
+      <span className="font-mono text-[8px] font-black uppercase tracking-[3px] text-[#999]">★ Recent</span>
+      <div className="border-[3px] border-black bg-white shadow-[3px_3px_0_#000] overflow-hidden">
+        {entries.map((entry, i) => (
           <div
             key={entry.id}
-            className="flex items-center gap-2 px-3 py-2 rounded-md border border-[#E5E5E5] bg-white font-mono text-[10px]"
+            className={`flex items-center gap-2 px-3 py-2 font-mono text-[10px] ${i < entries.length - 1 ? 'border-b-2 border-black' : ''}`}
           >
-            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${entry.result.success ? 'bg-[#16A34A]' : 'bg-[#DC2626]'}`} />
-            <span className="text-[#6B6B6B] truncate flex-1">{entry.raw_intent}</span>
-            <span className="text-[#999] shrink-0">
+            <span className={`w-2 h-2 border border-black shrink-0 ${entry.result.success ? 'bg-[#CCFF00]' : 'bg-[#FF5733]'}`} />
+            <span className="font-bold truncate flex-1">{entry.raw_intent}</span>
+            <span className="text-[#999] font-bold shrink-0">
               {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>

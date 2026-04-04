@@ -3,16 +3,14 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { HistoryEntry } from '@/types/flow';
-import { Badge } from '@/components/ui/Badge';
+import { JennieIcon } from '@/components/ui/JennieIcon';
 
 function getHistory(): HistoryEntry[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem('intentflow_history');
     return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
 export default function HistoryPage() {
@@ -24,52 +22,50 @@ export default function HistoryPage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-3 bg-white border-b-2 border-[#1A1A1A]">
-        <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-          <span className="font-heading text-lg font-bold tracking-tight text-[#1A1A1A]">IntentFlow</span>
+      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-5 py-3 bg-[#f5f5f0] border-b-[3px] border-black">
+        <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+          <JennieIcon expression="neutral" size="sm" />
+          <span className="font-mono text-sm font-black uppercase tracking-[3px]">IntentFlow</span>
         </Link>
-        <Link href="/" className="font-mono text-xs text-[#0D9488] hover:text-[#0A7A70] transition-colors">
-          New Intent
+        <Link href="/" className="px-3 py-1.5 border-[3px] border-black bg-[#CCFF00] font-mono text-[9px] font-black uppercase tracking-wider shadow-[2px_2px_0_#000] hover:shadow-[3px_3px_0_#000] transition-all">
+          New →
         </Link>
       </header>
 
       <main className="flex-1 pt-20 pb-12 px-4 max-w-2xl mx-auto w-full">
         <div className="space-y-5">
-          <h1 className="font-heading text-xl font-bold text-[#1A1A1A]">Recent Intents</h1>
+          <h1 className="font-mono text-lg font-black uppercase tracking-[3px]">★ History</h1>
 
           {entries.length === 0 ? (
-            <div className="text-center py-20 space-y-3">
-              <div className="w-12 h-12 mx-auto rounded-md border-2 border-[#D4D4D4] flex items-center justify-center text-[#999]">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <p className="text-sm text-[#6B6B6B]">No intents yet</p>
-              <Link href="/" className="inline-block font-mono text-xs text-[#0D9488] hover:underline">
-                Create your first intent
+            <div className="text-center py-16 space-y-4">
+              <JennieIcon expression="neutral" size="lg" />
+              <p className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#999]">No intents yet</p>
+              <Link href="/" className="inline-block px-4 py-2 border-[3px] border-black bg-[#CCFF00] font-mono text-[9px] font-black uppercase tracking-wider shadow-[3px_3px_0_#000]">
+                Create first intent →
               </Link>
             </div>
           ) : (
-            <div className="space-y-2">
-              {entries.map((entry) => (
+            <div className="border-[3px] border-black bg-white shadow-[4px_4px_0_#000] overflow-hidden">
+              {entries.map((entry, i) => (
                 <div
                   key={entry.id}
-                  className="flex items-center gap-3 px-4 py-3 rounded-md border-[1.5px] border-[#D4D4D4] bg-white hover:border-[#1A1A1A] transition-colors"
+                  className={`flex items-center gap-3 px-4 py-3 ${i < entries.length - 1 ? 'border-b-2 border-black' : ''}`}
                 >
+                  <span className={`w-3 h-3 border-2 border-black shrink-0 ${entry.result.success ? 'bg-[#CCFF00]' : 'bg-[#FF5733]'}`} />
                   <div className="flex-1 min-w-0">
-                    <p className="font-mono text-sm text-[#1A1A1A] truncate">{entry.raw_intent}</p>
+                    <p className="font-mono text-[10px] font-bold truncate">{entry.raw_intent}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="font-mono text-[10px] text-[#999]">
+                      <span className="font-mono text-[8px] font-bold text-[#999]">
                         {new Date(entry.timestamp).toLocaleString()}
                       </span>
-                      <Badge label={entry.plan_type} color="accent" />
+                      <span className="font-mono text-[8px] font-black uppercase px-1.5 py-0.5 border border-black bg-[#CCFF00]">
+                        {entry.plan_type}
+                      </span>
                     </div>
                   </div>
-                  <Badge
-                    label={entry.result.success ? 'Success' : 'Failed'}
-                    color={entry.result.success ? 'success' : 'error'}
-                  />
+                  <span className={`font-mono text-[8px] font-black uppercase px-2 py-1 border-2 border-black ${entry.result.success ? 'bg-[#CCFF00]' : 'bg-[#FF5733] text-white'}`}>
+                    {entry.result.success ? '✓' : '!!'}
+                  </span>
                 </div>
               ))}
             </div>

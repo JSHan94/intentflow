@@ -13,123 +13,81 @@ interface NetworkMapProps {
   onQuickAction: (action: string, chain: TestnetChain) => void;
 }
 
-const MAP_WIDTH = 500;
-const MAP_HEIGHT = 340;
-const CENTER_X = MAP_WIDTH / 2;
-const CENTER_Y = MAP_HEIGHT / 2;
-const ORBIT_RX = 170;
-const ORBIT_RY = 110;
+const MAP_W = 500;
+const MAP_H = 320;
+const CX = MAP_W / 2;
+const CY = MAP_H / 2;
+const ORB_X = 170;
+const ORB_Y = 100;
 
-function getNodePosition(index: number, total: number) {
-  const angle = (index / total) * 2 * Math.PI - Math.PI / 2;
-  return {
-    x: CENTER_X + ORBIT_RX * Math.cos(angle),
-    y: CENTER_Y + ORBIT_RY * Math.sin(angle),
-  };
+function nodePos(i: number, total: number) {
+  const angle = (i / total) * 2 * Math.PI - Math.PI / 2;
+  return { x: CX + ORB_X * Math.cos(angle), y: CY + ORB_Y * Math.sin(angle) };
 }
 
-function getNodeSize(balance: string, min = 22, max = 38): number {
+function nodeSize(balance: string, min = 22, max = 38): number {
   const amt = parseInt(balance || '0');
   if (amt <= 0) return min;
-  const scale = Math.min(Math.log10(amt / 1e6 + 1) / 2, 1);
-  return min + scale * (max - min);
+  return min + Math.min(Math.log10(amt / 1e6 + 1) / 2, 1) * (max - min);
 }
 
 export function NetworkMap({ balances, isConnected, onQuickAction }: NetworkMapProps) {
-  const [hoveredChain, setHoveredChain] = useState<string | null>(null);
-  const [popupPos, setPopupPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [hovered, setHovered] = useState<string | null>(null);
+  const [popupPos, setPopupPos] = useState({ x: 0, y: 0 });
 
   const balanceMap = useMemo(() => {
-    const map: Record<string, ChainBalance> = {};
-    for (const b of balances) map[b.chain.chainName] = b;
-    return map;
+    const m: Record<string, ChainBalance> = {};
+    for (const b of balances) m[b.chain.chainName] = b;
+    return m;
   }, [balances]);
 
-  const l1Balance = balanceMap['initia_l1'];
-  const l1Size = getNodeSize(l1Balance?.totalInitAmount ?? '0', 32, 48);
-
+  const l1Bal = balanceMap['initia_l1'];
+  const l1Size = nodeSize(l1Bal?.totalInitAmount ?? '0', 32, 48);
   const minitias = TESTNET_MINITIAS;
 
-  const handleNodeHover = (chainName: string, x: number, y: number) => {
-    setHoveredChain(chainName);
-    setPopupPos({ x, y });
-  };
-
-  const hoveredChainConfig = hoveredChain
-    ? (hoveredChain === 'initia_l1' ? INITIA_L1 : minitias.find(m => m.chainName === hoveredChain))
-    : null;
+  const hoveredConfig = hovered === 'initia_l1' ? INITIA_L1 : minitias.find(m => m.chainName === hovered);
 
   return (
     <div className="relative w-full flex justify-center">
-      <div className="relative" style={{ width: MAP_WIDTH, height: MAP_HEIGHT }}>
-        <svg
-          width={MAP_WIDTH}
-          height={MAP_HEIGHT}
-          viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
-          className="overflow-visible"
-        >
-          {/* Connection lines from each minitia to L1 */}
+      <div className="relative border-[3px] border-black bg-white shadow-[6px_6px_0_#000]" style={{ width: MAP_W, height: MAP_H }}>
+        <svg width={MAP_W} height={MAP_H} viewBox={`0 0 ${MAP_W} ${MAP_H}`} className="overflow-visible">
+          {/* Lines */}
           {minitias.map((chain, i) => {
-            const pos = getNodePosition(i, minitias.length);
-            const bal = balanceMap[chain.chainName];
-            const hasBalance = parseInt(bal?.totalInitAmount ?? '0') > 0;
-
+            const pos = nodePos(i, minitias.length);
+            const hasBal = parseInt(balanceMap[chain.chainName]?.totalInitAmount ?? '0') > 0;
             return (
-              <line
-                key={`line-${chain.chainName}`}
-                x1={CENTER_X}
-                y1={CENTER_Y}
-                x2={pos.x}
-                y2={pos.y}
-                stroke={chain.color}
-                strokeWidth={hasBalance ? 1.5 : 1}
-                strokeDasharray={hasBalance ? 'none' : '4,4'}
-                opacity={hasBalance ? 0.5 : 0.2}
-              />
+              <line key={`l-${chain.chainName}`} x1={CX} y1={CY} x2={pos.x} y2={pos.y}
+                stroke="#000" strokeWidth={hasBal ? 2 : 1} strokeDasharray={hasBal ? 'none' : '6,4'} opacity={hasBal ? 0.3 : 0.1} />
             );
           })}
 
-          {/* L1 center node */}
-          <g
-            className="cursor-pointer"
-            onMouseEnter={(e) => {
-              const rect = (e.target as SVGElement).closest('svg')!.getBoundingClientRect();
-              handleNodeHover('initia_l1', CENTER_X, CENTER_Y - l1Size - 8);
-            }}
-            onMouseLeave={() => setHoveredChain(null)}
-            onClick={() => onQuickAction('stake', INITIA_L1)}
-          >
-            <circle cx={CENTER_X} cy={CENTER_Y} r={l1Size + 8} fill={INITIA_L1.color} opacity="0.08" />
-            <circle cx={CENTER_X} cy={CENTER_Y} r={l1Size} fill={INITIA_L1.color} opacity="0.15" stroke={INITIA_L1.color} strokeWidth="2" />
-            <text x={CENTER_X} y={CENTER_Y - 6} textAnchor="middle" fontSize="9" fontWeight="600" fill={INITIA_L1.color} fontFamily="var(--font-code), monospace">
-              Initia L1
-            </text>
-            <text x={CENTER_X} y={CENTER_Y + 8} textAnchor="middle" fontSize="11" fontWeight="700" fill="#1A1A1A" fontFamily="var(--font-code), monospace">
-              {l1Balance?.totalInitHuman ?? '—'} INIT
+          {/* L1 center */}
+          <g className="cursor-pointer"
+            onMouseEnter={() => { setHovered('initia_l1'); setPopupPos({ x: CX, y: CY - l1Size - 8 }); }}
+            onMouseLeave={() => setHovered(null)}>
+            <rect x={CX - l1Size} y={CY - l1Size} width={l1Size * 2} height={l1Size * 2} fill="#CCFF00" stroke="#000" strokeWidth="3" />
+            <text x={CX} y={CY - 4} textAnchor="middle" fontSize="9" fontWeight="900" fill="#000" fontFamily="monospace" letterSpacing="2">INITIA L1</text>
+            <text x={CX} y={CY + 10} textAnchor="middle" fontSize="12" fontWeight="900" fill="#000" fontFamily="monospace">
+              {l1Bal?.totalInitHuman ?? '—'} INIT
             </text>
           </g>
 
           {/* Minitia nodes */}
           {minitias.map((chain, i) => {
-            const pos = getNodePosition(i, minitias.length);
+            const pos = nodePos(i, minitias.length);
             const bal = balanceMap[chain.chainName];
-            const hasBalance = parseInt(bal?.totalInitAmount ?? '0') > 0;
-            const nodeSize = getNodeSize(bal?.totalInitAmount ?? '0');
-
+            const hasBal = parseInt(bal?.totalInitAmount ?? '0') > 0;
+            const ns = nodeSize(bal?.totalInitAmount ?? '0');
             return (
-              <g
-                key={chain.chainName}
-                className="cursor-pointer"
-                onMouseEnter={() => handleNodeHover(chain.chainName, pos.x, pos.y - nodeSize - 8)}
-                onMouseLeave={() => setHoveredChain(null)}
-                onClick={() => onQuickAction('sweep', chain)}
-                opacity={hasBalance ? 1 : 0.4}
-              >
-                <circle cx={pos.x} cy={pos.y} r={nodeSize} fill={chain.color} opacity="0.12" stroke={chain.color} strokeWidth="1.5" />
-                <text x={pos.x} y={pos.y - 4} textAnchor="middle" fontSize="8" fontWeight="600" fill={chain.color} fontFamily="var(--font-code), monospace">
-                  {chain.prettyName}
+              <g key={chain.chainName} className="cursor-pointer" opacity={hasBal ? 1 : 0.35}
+                onMouseEnter={() => { setHovered(chain.chainName); setPopupPos({ x: pos.x, y: pos.y - ns - 8 }); }}
+                onMouseLeave={() => setHovered(null)}
+                onClick={() => onQuickAction('sweep', chain)}>
+                <rect x={pos.x - ns} y={pos.y - ns} width={ns * 2} height={ns * 2} fill="white" stroke="#000" strokeWidth="2.5" />
+                <text x={pos.x} y={pos.y - 3} textAnchor="middle" fontSize="8" fontWeight="900" fill="#000" fontFamily="monospace" letterSpacing="1">
+                  {chain.prettyName.toUpperCase()}
                 </text>
-                <text x={pos.x} y={pos.y + 8} textAnchor="middle" fontSize="9" fontWeight="700" fill="#1A1A1A" fontFamily="var(--font-code), monospace">
+                <text x={pos.x} y={pos.y + 9} textAnchor="middle" fontSize="10" fontWeight="900" fill="#000" fontFamily="monospace">
                   {bal?.totalInitHuman ?? '—'}
                 </text>
               </g>
@@ -137,34 +95,21 @@ export function NetworkMap({ balances, isConnected, onQuickAction }: NetworkMapP
           })}
         </svg>
 
-        {/* Jennie in center background */}
-        <div
-          className="absolute pointer-events-none"
-          style={{ left: CENTER_X - 12, top: CENTER_Y - 42, opacity: 0.25 }}
-        >
-          <JennieIcon expression="neutral" size="sm" />
-        </div>
-
         {/* Hover popup */}
-        {hoveredChain && hoveredChainConfig && (
-          <ChainPopup
-            chain={hoveredChainConfig}
-            balance={balanceMap[hoveredChain] ?? null}
-            position={popupPos}
-            onAction={onQuickAction}
-          />
+        {hovered && hoveredConfig && (
+          <ChainPopup chain={hoveredConfig} balance={balanceMap[hovered] ?? null} position={popupPos} onAction={onQuickAction} />
+        )}
+
+        {/* Not connected overlay */}
+        {!isConnected && (
+          <div className="absolute inset-0 flex items-center justify-center bg-[#f5f5f0]/70">
+            <div className="text-center space-y-2">
+              <JennieIcon expression="neutral" size="lg" />
+              <p className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#999]">Connect wallet to see balances</p>
+            </div>
+          </div>
         )}
       </div>
-
-      {/* Not connected overlay */}
-      {!isConnected && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#FAFAF8]/60 backdrop-blur-[2px] rounded-md">
-          <div className="text-center space-y-2">
-            <JennieIcon expression="neutral" size="lg" />
-            <p className="font-mono text-xs text-[#999]">Connect wallet to see your balances</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

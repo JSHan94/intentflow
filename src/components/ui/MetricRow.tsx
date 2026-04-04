@@ -9,8 +9,8 @@ interface MetricRowProps {
 export function MetricRow({ label, value, highlight }: MetricRowProps) {
   return (
     <div className="flex items-center justify-between py-1.5">
-      <span className="text-xs text-[#6B6B6B]">{label}</span>
-      <span className={`text-sm font-mono font-medium ${highlight ? 'text-[#0D9488]' : 'text-[#1A1A1A]'}`}>
+      <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-[#999]">{label}</span>
+      <span className={`font-mono text-sm font-black ${highlight ? 'text-[#FF5733]' : 'text-black'}`}>
         {value}
       </span>
     </div>
