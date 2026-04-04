@@ -1,6 +1,7 @@
 'use client';
 
 import { useInterwovenKit } from '@initia/interwovenkit-react';
+import { JennieIcon } from '@/components/ui/JennieIcon';
 
 export function Header({ onHistoryClick }: { onHistoryClick?: () => void }) {
   const { isConnected, address, openConnect, openWallet, disconnect } = useInterwovenKit();
@@ -11,7 +12,8 @@ export function Header({ onHistoryClick }: { onHistoryClick?: () => void }) {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-3 bg-white border-b-2 border-[#1A1A1A]">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
+        <JennieIcon expression="neutral" size="sm" />
         <span className="font-heading text-lg font-bold tracking-tight text-[#1A1A1A]">IntentFlow</span>
         <span className="font-mono text-[10px] font-medium px-2 py-0.5 rounded-md border-[1.5px] border-[#D4D4D4] text-[#999]">
           testnet
