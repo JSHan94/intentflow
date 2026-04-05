@@ -27,14 +27,13 @@ export function Header({ onHistoryClick, network, onNetworkToggle }: HeaderProps
         {/* Network toggle */}
         <button
           onClick={onNetworkToggle}
-          disabled
-          className={`px-3 py-1.5 border-[3px] border-black font-mono text-[8px] font-black uppercase tracking-[2px] shadow-[2px_2px_0_#000] transition-all cursor-default ${
-            network === 'testnet'
+          className={`px-3 py-1.5 border-[3px] border-black font-mono text-[8px] font-black uppercase tracking-[2px] shadow-[2px_2px_0_#000] hover:shadow-[3px_3px_0_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] transition-all ${
+            network === 'mainnet'
               ? 'bg-[#CCFF00] text-black'
-              : 'bg-white text-[#999]'
+              : 'bg-[#FF5733] text-white'
           }`}
         >
-          {network === 'testnet' ? '★ Testnet' : 'Mainnet'}
+          {network === 'mainnet' ? '★ Mainnet' : '★ Testnet'}
         </button>
 
         {onHistoryClick && (

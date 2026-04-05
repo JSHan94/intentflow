@@ -28,9 +28,10 @@ export function tokenize(input: string): TokenizedInput {
 
   let normalized = original.toLowerCase();
 
-  // Expand contractions
+  // Expand contractions (whole-word only to avoid mangling e.g. "bridge" → "bri wouldge")
   for (const [contraction, expansion] of Object.entries(CONTRACTIONS)) {
-    normalized = normalized.replace(new RegExp(contraction.replace("'", "'?"), 'gi'), expansion);
+    const escaped = contraction.replace("'", "'?");
+    normalized = normalized.replace(new RegExp(`\\b${escaped}\\b`, 'gi'), expansion);
   }
 
   // Remove punctuation except hyphens (keep chain names like "bfb-1")

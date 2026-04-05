@@ -44,6 +44,8 @@ export const CHAIN_KEYWORDS: Record<string, string[]> = {
   ember: ['ember', 'embr', 'embrmainnet', 'embr.fun'],
   // Testnet rollups
   minievm: ['minievm', 'mini evm', 'mini-evm', 'evm-1'],
+  minimove: ['minimove', 'mini move', 'mini-move', 'move-1'],
+  miniwasm: ['miniwasm', 'mini wasm', 'mini-wasm', 'wasm-1'],
 };
 
 export const SOURCE_QUALIFIERS: Record<string, string[]> = {
