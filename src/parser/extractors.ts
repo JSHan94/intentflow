@@ -86,8 +86,8 @@ export function extractAmount(input: string): { amount: number; asset: string } 
 }
 
 export function extractSource(input: string): ChainReference {
-  // Check "from X" pattern
-  const fromMatch = input.match(/(?:from|on)\s+([\w-]+(?:\s+[\w-]+)?)/i)
+  // Check "from X" pattern (not "on" — that's destination context)
+  const fromMatch = input.match(/from\s+([\w-]+(?:\s+[\w-]+)?)/i)
     ?? input.match(/([\w-]+)\s*(?:에서|부터)/i);
 
   // Check source qualifiers
@@ -134,13 +134,19 @@ export function extractDestination(input: string): ChainReference {
     }
   }
 
-  // Check specific chain from "to X" match
+  // Check specific chain from "to/on X" match
   if (toMatch) {
     const chainText = toMatch[1].toLowerCase();
     const chain = findBestMatch(chainText, CHAIN_KEYWORDS);
     if (chain) {
       return { chain_name: chain, qualifier: 'specific' };
     }
+  }
+
+  // Fallback: scan entire input for any chain mention as destination
+  const anyChain = findBestMatch(input, CHAIN_KEYWORDS);
+  if (anyChain) {
+    return { chain_name: anyChain, qualifier: 'specific' };
   }
 
   // Default: unresolved

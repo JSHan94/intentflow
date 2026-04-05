@@ -39,15 +39,7 @@ function detectAmbiguities(intent: ParsedIntent, actionMatched: boolean): Ambigu
     flags.push({
       field: 'destination',
       reason: 'No destination specified',
-      alternatives: ['initia_l1', 'minievm'],
-    });
-  }
-
-  if (intent.source.qualifier === 'unresolved') {
-    flags.push({
-      field: 'source',
-      reason: 'No source specified',
-      alternatives: ['all chains', 'initia_l1', 'minievm'],
+      alternatives: ['initia_l1', 'echelon', 'cabal', 'civitia'],
     });
   }
 
@@ -106,15 +98,8 @@ export function parseIntent(rawInput: string): IntentParseResult {
     }
   }
 
-  // If destination is unresolved for sweep/consolidate, default to initia_l1
-  if (
-    primary.destination.qualifier === 'unresolved' &&
-    (
-      primary.action_type === 'sweep' ||
-      primary.action_type === 'consolidate' ||
-      primary.action_type === 'stake'
-    )
-  ) {
+  // If destination is unresolved, default to initia_l1 for most actions
+  if (primary.destination.qualifier === 'unresolved') {
     primary.destination = { chain_name: 'initia_l1', qualifier: 'specific' };
     primary.confidence += 0.05;
   }

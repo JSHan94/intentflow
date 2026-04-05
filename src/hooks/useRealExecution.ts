@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { useInterwovenKit } from '@initia/interwovenkit-react';
 import type { EncodeObject } from '@cosmjs/proto-signing';
 import type { DeliverTxResponse } from '@cosmjs/stargate';
-import { getChainConfig, INIT_DENOM, TESTNET_L1, type ChainConfig } from '@/config/chains';
+import { getChainConfig, getL1, INIT_DENOM, type ChainConfig } from '@/config/chains';
 import { fetchDenomBalance } from '@/services/balance';
 import { buildOpBridgeDepositMsg, computeMaxSpendableAmount, simulateFeePlan, waitForBalanceIncrease } from '@/services/execution';
 import { buildIbcTransferMsg } from '@/services/ibc-transfer';
@@ -41,8 +41,8 @@ export interface RealExecutionState {
 }
 
 function humanizeStep(step: PlanStep): string {
-  const source = getChainConfig(step.source_chain, 'testnet');
-  const destination = getChainConfig(step.destination_chain, 'testnet');
+  const source = getChainConfig(step.source_chain);
+  const destination = getChainConfig(step.destination_chain);
 
   switch (step.operation) {
     case 'ibc_transfer':
@@ -124,8 +124,8 @@ export function useRealExecution() {
       throw new Error('No wallet connected');
     }
 
-    const sourceChain = getChainConfig(step.source_chain, 'testnet');
-    const destinationChain = getChainConfig(step.destination_chain, 'testnet');
+    const sourceChain = getChainConfig(step.source_chain);
+    const destinationChain = getChainConfig(step.destination_chain);
 
     if (!sourceChain || !destinationChain) {
       throw new Error(`Unsupported route: ${step.source_chain} → ${step.destination_chain}`);
@@ -215,11 +215,12 @@ export function useRealExecution() {
     }
 
     if (step.operation === 'stake') {
+      const l1Chain = sourceChain; // stake always runs on L1
       const validator = await getTopValidator();
-      const l1Balance = await fetchDenomBalance(TESTNET_L1, walletAddress, INIT_DENOM);
+      const l1Balance = await fetchDenomBalance(l1Chain, walletAddress, INIT_DENOM);
       const simulationMsg = buildDelegateMsg(walletAddress, validator.operatorAddress, l1Balance);
       const feePlan = await simulateFeePlan({
-        chain: TESTNET_L1,
+        chain: l1Chain,
         messages: [simulationMsg],
         estimateGas,
       });
@@ -229,7 +230,7 @@ export function useRealExecution() {
       }
 
       const tx = await broadcastTx({
-        chain: TESTNET_L1,
+        chain: l1Chain,
         messages: [buildDelegateMsg(walletAddress, validator.operatorAddress, stakeAmount)],
         feePlan,
       });
@@ -252,7 +253,7 @@ export function useRealExecution() {
 
     const steps: ExecutionStep[] = plan.steps.map((step) => ({
       label: humanizeStep(step),
-      chainId: getChainConfig(step.source_chain, 'testnet')?.chainId ?? TESTNET_L1.chainId,
+      chainId: getChainConfig(step.source_chain)?.chainId ?? 'initiation-2',
       status: 'pending',
     }));
 
@@ -299,7 +300,7 @@ export function useRealExecution() {
       success: true,
       final_state: lastStep?.operation === 'stake'
         ? 'INIT staked on Initia L1'
-        : `INIT delivered to ${getChainConfig(lastStep?.destination_chain ?? 'initia_l1', 'testnet')?.prettyName ?? 'destination'}`,
+        : `INIT delivered to ${getChainConfig(lastStep?.destination_chain ?? 'initia_l1')?.prettyName ?? 'destination'}`,
       total_cost_usd: Number(totalFeeUsd.toFixed(2)),
       total_time_seconds: Math.max(1, Math.round((Date.now() - startedAt) / 1000)),
       steps_completed: plan.steps.length,

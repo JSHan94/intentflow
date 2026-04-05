@@ -1,6 +1,6 @@
 import type { EncodeObject } from '@cosmjs/proto-signing';
 import { MsgDelegate } from '@initia/initia.js';
-import { TESTNET_L1, INIT_DENOM } from '@/config/chains';
+import { getL1, INIT_DENOM, type NetworkType } from '@/config/chains';
 
 export interface ValidatorInfo {
   operatorAddress: string;
@@ -11,10 +11,11 @@ export interface ValidatorInfo {
 }
 
 /**
- * Fetch bonded validators from L1 testnet, sorted by voting power
+ * Fetch bonded validators from L1, sorted by voting power
  */
-export async function fetchValidators(limit = 10): Promise<ValidatorInfo[]> {
-  const url = `${TESTNET_L1.restUrl}/cosmos/staking/v1beta1/validators?status=BOND_STATUS_BONDED&pagination.limit=${limit}`;
+export async function fetchValidators(limit = 10, network: NetworkType = 'testnet'): Promise<ValidatorInfo[]> {
+  const l1 = getL1(network);
+  const url = `${l1.restUrl}/cosmos/staking/v1beta1/validators?status=BOND_STATUS_BONDED&pagination.limit=${limit}`;
 
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch validators: ${res.status}`);
@@ -69,7 +70,7 @@ export async function fetchDelegations(address: string): Promise<{
   validator: string;
   amount: string;
 }[]> {
-  const url = `${TESTNET_L1.restUrl}/cosmos/staking/v1beta1/delegations/${address}`;
+  const url = `${getL1('testnet').restUrl}/cosmos/staking/v1beta1/delegations/${address}`;
 
   try {
     const res = await fetch(url);

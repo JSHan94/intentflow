@@ -1,37 +1,59 @@
 import type { ActionType, FeePreference } from '@/types/intent';
 
 export const ACTION_KEYWORDS: Record<ActionType, string[]> = {
-  sweep: ['sweep', 'sweep up', 'gather', 'pull together', 'scoop', 'collect all', '스윕', '모으기', '쓸어오기'],
-  consolidate: ['consolidate', 'merge', 'combine', 'unify', 'aggregate', '통합', '합치기'],
-  bridge: ['bridge', 'ibc transfer', 'cross-chain', 'relay', '브리지', '입금', '출금'],
-  move: ['move', 'send', 'transfer', 'shift', 'migrate', 'port', '이동', '전송'],
-  stake: ['stake', 'delegate', 'staking', 'bond', '스테이크', '스테이킹', '위임'],
-  collect: ['collect', 'find best', 'best option', 'recommend', 'options'],
-  show_options: ['show', 'display', 'list', 'check', 'view', 'what can i', 'show me'],
+  sweep: ['sweep', 'sweep up', 'gather', 'pull together', 'scoop', 'collect all'],
+  consolidate: ['consolidate', 'merge', 'combine', 'unify', 'aggregate'],
+  bridge: [
+    'bridge', 'ibc transfer', 'cross-chain', 'relay',
+    'deposit', 'withdraw', 'send to', 'move to',
+  ],
+  move: ['move', 'send', 'transfer', 'shift', 'migrate', 'port'],
+  stake: [
+    'stake', 'delegate', 'staking', 'bond',
+    'lend', 'lending', 'supply', 'provide',
+    'deposit', 'add liquidity', 'concentrate liquidity', 'concentrate',
+    'leverage', 'earn yield', 'earn',
+  ],
+  collect: [
+    'collect', 'find best', 'best option', 'recommend', 'options',
+    'swap', 'trade', 'exchange', 'buy', 'sell',
+    'launch', 'create', 'deploy', 'mint',
+  ],
+  show_options: ['show', 'display', 'list', 'check', 'view', 'what can i', 'show me', 'explore'],
 };
 
 export const ASSET_KEYWORDS: Record<string, string[]> = {
   USDC: ['usdc', 'usd coin', 'dollar', 'stablecoin', 'stable', 'stables'],
+  iUSD: ['iusd', 'i-usd'],
   ETH: ['eth', 'ether', 'ethereum', 'weth'],
   INIT: ['init', 'initia', 'uinit'],
+  milkINIT: ['milkinit', 'milk init', 'milked init', 'lst'],
   TIA: ['tia', 'celestia'],
   ATOM: ['atom', 'cosmos'],
   ALL: ['all', 'everything', 'all my', 'all assets', 'every token', 'my balances', 'all balances', 'my funds', 'all funds'],
 };
 
 export const CHAIN_KEYWORDS: Record<string, string[]> = {
-  initia_l1: ['initia', 'l1', 'layer 1', 'initia l1', 'initia destination', 'initia testnet', 'initiation-2', 'initiation 2', '이니시아', '레이어1'],
-  minievm: ['minievm', 'mini evm', 'mini-evm', 'evm', 'evm-1', 'mini', '미니이브이엠', '미니evm'],
+  initia_l1: ['initia', 'l1', 'layer 1', 'initia l1', 'initia destination', 'initiation-2', 'interwoven'],
+  // Mainnet rollups
+  civitia: ['civitia', 'civitia-1'],
+  yominet: ['yominet', 'yomi', 'yominet-1', 'kamigotchi'],
+  cabal: ['cabal', 'cabal-1'],
+  strat: ['strat', 'strat-1', 'stratvm'],
+  echelon: ['echelon', 'echelon-1'],
+  ember: ['ember', 'embr', 'embrmainnet', 'embr.fun'],
+  // Testnet rollups
+  minievm: ['minievm', 'mini evm', 'mini-evm', 'evm-1'],
 };
 
 export const SOURCE_QUALIFIERS: Record<string, string[]> = {
-  all: ['all', 'everywhere', 'every chain', 'all rollups', 'all chains', 'across all', 'from everywhere', '전체', '전부', '모든 체인'],
-  here: ['here', 'this chain', 'current', 'this rollup', '여기', '현재 체인'],
+  all: ['all', 'everywhere', 'every chain', 'all rollups', 'all chains', 'across all', 'from everywhere'],
+  here: ['here', 'this chain', 'current', 'this rollup'],
 };
 
 export const DESTINATION_QUALIFIERS: Record<string, string[]> = {
-  one_wallet: ['one wallet', 'one place', 'single wallet', 'one destination', 'single destination', 'one account', 'together', 'into one', '한 곳으로', '한 지갑으로'],
-  here: ['here', 'this chain', 'this wallet', 'current', '여기', '현재 체인'],
+  one_wallet: ['one wallet', 'one place', 'single wallet', 'one destination', 'single destination', 'one account', 'together', 'into one'],
+  here: ['here', 'this chain', 'this wallet', 'current'],
 };
 
 export const FEE_KEYWORDS: Record<FeePreference, string[]> = {
