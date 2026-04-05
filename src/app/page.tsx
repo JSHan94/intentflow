@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useInterwovenKit } from '@initia/interwovenkit-react';
@@ -20,7 +20,7 @@ import { RecentHistory } from '@/components/history/RecentHistory';
 import { useIntentFlow } from '@/hooks/useIntentFlow';
 import { useMultiChainBalances } from '@/hooks/useMultiChainBalances';
 import { useRealExecution } from '@/hooks/useRealExecution';
-import type { TestnetChain } from '@/config/testnet-chains';
+import type { ChainConfig, NetworkType } from '@/config/chains';
 import type { HistoryEntry, FlowPhase } from '@/types/flow';
 
 function saveToHistory(entry: HistoryEntry) {
@@ -37,7 +37,8 @@ const transition = { duration: 0.15, ease: 'easeOut' as const };
 export default function Home() {
   const router = useRouter();
   const { isConnected, openConnect, address } = useInterwovenKit();
-  const { state, submitIntent, confirmIntent, selectPlan, reset, dispatch } = useIntentFlow();
+  const [network, setNetwork] = useState<NetworkType>('mainnet');
+  const { state, submitIntent, confirmIntent, selectPlan, goBack, reset, dispatch } = useIntentFlow();
   const { balances, sweepableChains, isLoading: balancesLoading, refetch: refetchBalances } = useMultiChainBalances(
     isConnected ? address : undefined
   );
@@ -75,7 +76,7 @@ export default function Home() {
     refetchBalances();
   };
 
-  const handleNetworkAction = (action: string, chain: TestnetChain) => {
+  const handleNetworkAction = (action: string, chain: ChainConfig) => {
     if (action === 'explorer') {
       window.open(`${chain.explorerUrl}/address/${address}`, '_blank');
       return;
@@ -89,8 +90,15 @@ export default function Home() {
     }
   };
 
-  const handleQuickAction = (intent: string) => {
+  const handleActionIntent = (intent: string) => {
     submitIntent(intent);
+  };
+
+  const handleGoBack = () => {
+    if (execState.phase !== 'idle') {
+      resetExec();
+    }
+    goBack();
   };
 
   const showRealExecution = execState.phase !== 'idle';
@@ -99,18 +107,21 @@ export default function Home() {
   if (showRealExecution && execState.phase !== 'done') displayPhase = 'executing';
   if (execState.phase === 'done') displayPhase = 'result';
 
-  // Input phase = dashboard view
   const showDashboard = state.phase === 'input' && !showRealExecution;
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Header onHistoryClick={() => router.push('/history')} />
+      <Header
+        onHistoryClick={() => router.push('/history')}
+        network={network}
+        onNetworkToggle={() => setNetwork(n => n === 'mainnet' ? 'testnet' : 'mainnet')}
+      />
 
       <main className="flex-1 flex flex-col px-4 pt-20 pb-8">
         {/* Phase bar — shown during non-dashboard phases */}
         {isConnected && !showDashboard && (
           <div className="w-full max-w-2xl mx-auto mb-6 mt-4">
-            <PhaseBar currentPhase={displayPhase} />
+            <PhaseBar currentPhase={displayPhase} onBack={handleGoBack} />
           </div>
         )}
 
@@ -124,25 +135,20 @@ export default function Home() {
             transition={transition}
             className="w-full max-w-2xl mx-auto space-y-5 mt-4"
           >
-            {/* Network Map */}
             <NetworkMap
               balances={balances}
               isConnected={isConnected}
+              network={network}
               onQuickAction={handleNetworkAction}
+              onActionIntent={handleActionIntent}
             />
-
-            {/* Intent Input */}
             <IntentInput onSubmit={submitIntent} />
-
-            {/* Quick Actions */}
-            <QuickActions onAction={handleQuickAction} />
-
-            {/* Recent History */}
+            <QuickActions onAction={handleActionIntent} />
             <RecentHistory />
           </motion.div>
         )}
 
-        {/* NOT CONNECTED — welcome with Jennie */}
+        {/* NOT CONNECTED */}
         {!isConnected && (
           <div className="flex-1 flex items-center justify-center">
             <motion.div
@@ -153,13 +159,13 @@ export default function Home() {
               transition={transition}
               className="flex flex-col items-center gap-5 w-full max-w-lg mx-auto text-center"
             >
-              {/* Network map preview (not connected) */}
               <NetworkMap
                 balances={[]}
                 isConnected={false}
+                network={network}
                 onQuickAction={() => openConnect()}
+                onActionIntent={() => openConnect()}
               />
-
               <h1 className="font-mono text-xl font-black uppercase tracking-[3px]">
                 Welcome to IntentFlow
               </h1>
@@ -180,30 +186,14 @@ export default function Home() {
         {isConnected && !showDashboard && (
           <div className="flex-1 flex items-center justify-center">
             <AnimatePresence mode="wait">
-              {/* Parsing */}
               {state.phase === 'parsing' && !showRealExecution && (
-                <motion.div
-                  key="parsing"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={transition}
-                  className="w-full"
-                >
+                <motion.div key="parsing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={transition} className="w-full">
                   <ParseAnimation rawIntent={state.raw_intent} />
                 </motion.div>
               )}
 
-              {/* Parsed */}
               {state.phase === 'parsed' && state.parse_result && state.edited_intent && !showRealExecution && (
-                <motion.div
-                  key="parsed"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={transition}
-                  className="w-full"
-                >
+                <motion.div key="parsed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={transition} className="w-full">
                   <ParsedFields
                     intent={state.edited_intent}
                     ambiguities={state.parse_result.ambiguities}
@@ -216,23 +206,15 @@ export default function Home() {
                 </motion.div>
               )}
 
-              {/* Planning */}
               {state.phase === 'planning' && !showRealExecution && (
-                <motion.div
-                  key="planning"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={transition}
-                  className="w-full"
-                >
+                <motion.div key="planning" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={transition} className="w-full">
                   {state.plans.length > 0 ? (
                     <PlanCards plans={state.plans} onSelect={handleSelectPlan} />
                   ) : (
                     <div className="flex flex-col items-center gap-3">
                       <JennieIcon expression="thinking" size="lg" />
                       <div className="flex items-center gap-2 font-mono text-xs text-[#999]">
-                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#0D9488] animate-pulse" />
+                        <span className="inline-block w-1.5 h-1.5 bg-[#CCFF00] animate-pulse" />
                         Generating execution plans...
                       </div>
                     </div>
@@ -240,34 +222,14 @@ export default function Home() {
                 </motion.div>
               )}
 
-              {/* Executing */}
               {showRealExecution && execState.phase !== 'done' && (
-                <motion.div
-                  key="real-executing"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={transition}
-                  className="w-full"
-                >
-                  <RealExecutionView
-                    steps={execState.steps}
-                    phase={execState.phase}
-                    error={execState.error}
-                  />
+                <motion.div key="real-executing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={transition} className="w-full">
+                  <RealExecutionView steps={execState.steps} phase={execState.phase} error={execState.error} />
                 </motion.div>
               )}
 
-              {/* Result */}
               {execState.phase === 'done' && state.selected_plan && (
-                <motion.div
-                  key="result"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={transition}
-                  className="w-full"
-                >
+                <motion.div key="result" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={transition} className="w-full">
                   <div className="flex justify-center mb-4">
                     <JennieIcon expression="happy" size="lg" />
                   </div>
@@ -291,13 +253,10 @@ export default function Home() {
                         href={`https://scan.testnet.initia.xyz/txs/${step.txHash}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-3 py-2 rounded-md border-[1.5px] border-[#D4D4D4] bg-white font-mono text-[10px] text-[#0D9488] hover:border-[#0D9488] transition-colors"
+                        className="flex items-center gap-2 px-3 py-2 border-[3px] border-black bg-white font-mono text-[10px] text-[#FF5733] shadow-[2px_2px_0_#000] hover:shadow-[3px_3px_0_#000] transition-all"
                       >
-                        <span className="text-[#6B6B6B]">{step.label.split(' ').slice(0, 3).join(' ')}</span>
-                        <span className="ml-auto">{step.txHash?.slice(0, 10)}...{step.txHash?.slice(-6)}</span>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
-                        </svg>
+                        <span className="text-[#999]">{step.label.split(' ').slice(0, 3).join(' ')}</span>
+                        <span className="ml-auto font-black">{step.txHash?.slice(0, 10)}...{step.txHash?.slice(-6)} ↗</span>
                       </a>
                     ))}
                   </div>
@@ -308,7 +267,7 @@ export default function Home() {
         )}
       </main>
 
-      <footer className="py-3 text-center font-mono text-[10px] text-[#999] border-t-2 border-[#E5E5E5]">
+      <footer className="py-3 text-center font-mono text-[10px] text-[#999] border-t-[3px] border-black">
         Built for INITIATE Hackathon &middot; Cross-rollup intent execution on Initia
       </footer>
     </div>

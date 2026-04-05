@@ -27,6 +27,7 @@ export interface HistoryEntry {
 
 export interface FlowState {
   phase: FlowPhase;
+  phaseHistory: FlowPhase[];
   raw_intent: string;
   parse_result: IntentParseResult | null;
   edited_intent: ParsedIntent | null;
@@ -45,4 +46,5 @@ export type FlowAction =
   | { type: 'SELECT_PLAN'; payload: ExecutionPlan }
   | { type: 'UPDATE_STEP'; payload: { index: number; status: ExecutionStepStatus['status'] } }
   | { type: 'SET_RESULT'; payload: ExecutionResult }
+  | { type: 'BACK' }
   | { type: 'RESET' };

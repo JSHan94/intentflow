@@ -6,33 +6,33 @@ export interface PresetIntent {
 
 export const PRESET_INTENTS: PresetIntent[] = [
   {
-    label: 'Sweep USDC',
-    input: 'Sweep all my USDC into one Initia destination',
+    label: 'Sweep to L1',
+    input: 'Sweep all my INIT from miniEVM to Initia L1',
     category: 'sweep',
   },
   {
-    label: 'Bridge ETH',
-    input: 'Bridge my ETH from Echelon to Blackwing',
+    label: 'Bridge to miniEVM',
+    input: 'Bridge my INIT from Initia L1 to miniEVM',
     category: 'bridge',
   },
   {
-    label: 'Move to Blackwing',
-    input: 'Move everything to Blackwing',
+    label: 'Stake on L1',
+    input: 'Stake my INIT on Initia L1',
     category: 'move',
   },
   {
-    label: 'Consolidate cheap',
-    input: 'Consolidate my balances if fees are low enough',
+    label: 'Consolidate INIT',
+    input: 'Consolidate my INIT balances on Initia L1',
     category: 'sweep',
   },
   {
-    label: 'Fast INIT transfer',
-    input: 'Send 100 INIT from Civitia to Tucana as fast as possible',
+    label: 'Fast bridge',
+    input: 'Move my INIT to miniEVM as fast as possible',
     category: 'bridge',
   },
   {
-    label: 'Collect all assets',
-    input: 'Show me the best option to collect assets into one wallet',
+    label: 'Show options',
+    input: 'Show me the best option for my INIT on initiation-2 or miniEVM',
     category: 'explore',
   },
 ];

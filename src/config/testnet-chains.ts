@@ -4,52 +4,51 @@ export interface TestnetChain {
   prettyName: string;
   restUrl: string;
   rpcUrl: string;
+  jsonRpcUrl?: string;
   ibcChannelToL1: string;
   bridgeId: number;
+  feeDenom: string;
+  averageGasPrice: string;
   vmType: 'move' | 'evm' | 'cosmwasm';
   color: string;
   explorerUrl: string;
+  aliases?: string[];
 }
 
 export const INITIA_L1: TestnetChain = {
   chainName: 'initia_l1',
   chainId: 'initiation-2',
   prettyName: 'Initia L1',
-  restUrl: 'https://rest.initiation-2.initia.xyz',
-  rpcUrl: 'https://rpc.initiation-2.initia.xyz',
+  restUrl: 'https://rest.testnet.initia.xyz',
+  rpcUrl: 'https://rpc.testnet.initia.xyz',
   ibcChannelToL1: '',
   bridgeId: 0,
+  feeDenom: 'uinit',
+  averageGasPrice: '0.015',
   vmType: 'move',
   color: '#6366f1',
   explorerUrl: 'https://scan.testnet.initia.xyz',
+  aliases: ['initia', 'initia l1', 'l1', 'layer 1', 'initiation-2', 'initia testnet'],
 };
 
-export const TESTNET_MINITIAS: TestnetChain[] = [
-  {
-    chainName: 'zaar',
-    chainId: 'zaar-testnet-5',
-    prettyName: 'Zaar',
-    restUrl: 'https://rest-zaar-testnet-5.anvil.asia-southeast.initia.xyz',
-    rpcUrl: 'https://rpc-zaar-testnet-5.anvil.asia-southeast.initia.xyz',
-    ibcChannelToL1: 'channel-0',
-    bridgeId: 1048,
-    vmType: 'evm',
-    color: '#8b5cf6',
-    explorerUrl: 'https://scan.testnet.initia.xyz',
-  },
-  {
-    chainName: 'civitia',
-    chainId: 'civitia-1',
-    prettyName: 'Civitia',
-    restUrl: 'https://rest-civitia-1.anvil.asia-southeast.initia.xyz',
-    rpcUrl: 'https://rpc-civitia-1.anvil.asia-southeast.initia.xyz',
-    ibcChannelToL1: 'channel-0',
-    bridgeId: 12,
-    vmType: 'move',
-    color: '#f59e0b',
-    explorerUrl: 'https://scan.testnet.initia.xyz',
-  },
-];
+export const MINI_EVM: TestnetChain = {
+  chainName: 'minievm',
+  chainId: 'evm-1',
+  prettyName: 'miniEVM',
+  restUrl: 'https://rest-evm-1.anvil.asia-southeast.initia.xyz',
+  rpcUrl: 'https://rpc-evm-1.anvil.asia-southeast.initia.xyz',
+  jsonRpcUrl: 'https://jsonrpc-evm-1.anvil.asia-southeast.initia.xyz',
+  ibcChannelToL1: 'channel-0',
+  bridgeId: 1459,
+  feeDenom: 'uinit',
+  averageGasPrice: '0.015',
+  vmType: 'evm',
+  color: '#8b5cf6',
+  explorerUrl: 'https://scan.testnet.initia.xyz',
+  aliases: ['minievm', 'mini evm', 'mini-evm', 'evm', 'evm-1', 'mini'],
+};
+
+export const TESTNET_MINITIAS: TestnetChain[] = [MINI_EVM];
 
 export const ALL_CHAINS = [INITIA_L1, ...TESTNET_MINITIAS];
 
@@ -63,7 +62,12 @@ export function getTestnetChain(chainId: string): TestnetChain | undefined {
 }
 
 export function getTestnetChainByName(name: string): TestnetChain | undefined {
-  return ALL_CHAINS.find(c => c.chainName === name);
+  const normalized = name.toLowerCase().trim();
+  return ALL_CHAINS.find((chain) =>
+    chain.chainName === normalized ||
+    chain.chainId === normalized ||
+    chain.aliases?.some((alias) => alias.toLowerCase() === normalized)
+  );
 }
 
 export function formatInitAmount(rawAmount: string): string {

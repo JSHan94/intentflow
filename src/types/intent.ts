@@ -1,4 +1,4 @@
-export type ActionType = 'sweep' | 'consolidate' | 'bridge' | 'move' | 'collect' | 'show_options';
+export type ActionType = 'sweep' | 'consolidate' | 'bridge' | 'move' | 'stake' | 'collect' | 'show_options';
 
 export type FeePreference = 'cheapest' | 'fastest' | 'balanced' | 'any';
 

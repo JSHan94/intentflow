@@ -1,10 +1,10 @@
 import type { EncodeObject } from '@cosmjs/proto-signing';
-import { INIT_DENOM, type TestnetChain } from '@/config/testnet-chains';
+import { INIT_DENOM, type ChainConfig } from '@/config/chains';
 
 const IBC_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 export interface IbcTransferParams {
-  sourceChain: TestnetChain;
+  sourceChain: ChainConfig;
   senderAddress: string;
   receiverAddress: string;
   amount: string; // raw amount in uinit
@@ -69,7 +69,7 @@ export function buildIbcTransferWithStakeMemo(
  * Build multiple IBC transfer messages for sweeping from multiple chains
  */
 export function buildSweepMessages(
-  chains: { chain: TestnetChain; amount: string; denom?: string }[],
+  chains: { chain: ChainConfig; amount: string; denom?: string }[],
   senderAddress: string,
   receiverAddress: string,
 ): { msgs: EncodeObject[]; chainId: string }[] {

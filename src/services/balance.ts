@@ -1,7 +1,7 @@
-import { ALL_CHAINS, INIT_DENOM, INIT_DECIMALS, type TestnetChain } from '@/config/testnet-chains';
+import { getAllChains, INIT_DENOM, INIT_DECIMALS, type ChainConfig } from '@/config/chains';
 
 export interface ChainBalance {
-  chain: TestnetChain;
+  chain: ChainConfig;
   balances: TokenBalance[];
   totalInitAmount: string;
   totalInitHuman: string;
@@ -17,7 +17,7 @@ export interface TokenBalance {
  * Fetch all token balances for an address on a specific chain
  */
 export async function fetchChainBalances(
-  chain: TestnetChain,
+  chain: ChainConfig,
   address: string,
 ): Promise<ChainBalance> {
   const url = `${chain.restUrl}/cosmos/bank/v1beta1/balances/${address}`;
@@ -55,7 +55,7 @@ export async function fetchChainBalances(
  */
 export async function fetchAllBalances(address: string): Promise<ChainBalance[]> {
   const results = await Promise.allSettled(
-    ALL_CHAINS.map((chain) => fetchChainBalances(chain, address))
+    getAllChains('testnet').map((chain) => fetchChainBalances(chain, address))
   );
 
   return results

@@ -2,7 +2,7 @@
 
 import type { ParsedIntent, AmbiguityFlag } from '@/types/intent';
 import { Badge } from '@/components/ui/Badge';
-import { getChain } from '@/data/mock-chains';
+import { getChainConfig } from '@/config/chains';
 
 interface ParsedFieldsProps {
   intent: ParsedIntent;
@@ -13,7 +13,7 @@ interface ParsedFieldsProps {
 
 const ACTION_LABELS: Record<string, string> = {
   sweep: 'Sweep', consolidate: 'Consolidate', bridge: 'Bridge',
-  move: 'Move', collect: 'Collect', show_options: 'Show Options',
+  move: 'Move', stake: 'Stake', collect: 'Collect', show_options: 'Show Options',
 };
 
 const FEE_LABELS: Record<string, string> = {
@@ -31,11 +31,11 @@ function ParsedField({ label, value }: { label: string; value: string }) {
 
 export function ParsedFields({ intent, ambiguities, onConfirm }: ParsedFieldsProps) {
   const sourceName = intent.source.chain_name
-    ? getChain(intent.source.chain_name)?.pretty_name ?? intent.source.chain_name
+    ? getChainConfig(intent.source.chain_name)?.prettyName ?? intent.source.chain_name
     : intent.source.qualifier === 'all' ? 'All Chains' : '???';
 
   const destName = intent.destination.chain_name
-    ? getChain(intent.destination.chain_name)?.pretty_name ?? intent.destination.chain_name
+    ? getChainConfig(intent.destination.chain_name)?.prettyName ?? intent.destination.chain_name
     : '???';
 
   const confidence = Math.round(intent.confidence * 100);

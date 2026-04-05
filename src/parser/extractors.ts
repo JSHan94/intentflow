@@ -87,7 +87,8 @@ export function extractAmount(input: string): { amount: number; asset: string } 
 
 export function extractSource(input: string): ChainReference {
   // Check "from X" pattern
-  const fromMatch = input.match(/from\s+(\w+(?:\s+\w+)?)/i);
+  const fromMatch = input.match(/(?:from|on)\s+([\w-]+(?:\s+[\w-]+)?)/i)
+    ?? input.match(/([\w-]+)\s*(?:에서|부터)/i);
 
   // Check source qualifiers
   for (const [qualifier, synonyms] of Object.entries(SOURCE_QUALIFIERS)) {
@@ -119,7 +120,9 @@ export function extractSource(input: string): ChainReference {
 
 export function extractDestination(input: string): ChainReference {
   // Check "to/into X" pattern
-  const toMatch = input.match(/(?:to|into|onto)\s+(\w+(?:\s+\w+)?(?:\s+\w+)?)/i);
+  const toMatch = input.match(/(?:to|into|onto)\s+([\w-]+(?:\s+[\w-]+)?(?:\s+[\w-]+)?)/i)
+    ?? input.match(/(?:to|into|onto|on)\s+([\w-]+(?:\s+[\w-]+)?(?:\s+[\w-]+)?)/i)
+    ?? input.match(/([\w-]+)\s*(?:로|으로)/i);
 
   // Check destination qualifiers
   for (const [qualifier, synonyms] of Object.entries(DESTINATION_QUALIFIERS)) {

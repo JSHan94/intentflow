@@ -1,13 +1,13 @@
 'use client';
 
-import type { TestnetChain } from '@/config/testnet-chains';
+import type { ChainConfig } from '@/config/chains';
 import type { ChainBalance } from '@/services/balance';
 
 interface ChainPopupProps {
-  chain: TestnetChain;
+  chain: ChainConfig;
   balance: ChainBalance | null;
   position: { x: number; y: number };
-  onAction: (action: string, chain: TestnetChain) => void;
+  onAction: (action: string, chain: ChainConfig) => void;
 }
 
 export function ChainPopup({ chain, balance, position, onAction }: ChainPopupProps) {

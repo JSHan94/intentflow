@@ -1,13 +1,14 @@
 'use client';
 
 import { useReducer, useCallback, useRef } from 'react';
-import type { FlowState, FlowAction, ExecutionStepStatus } from '@/types/flow';
+import type { FlowState, FlowAction, FlowPhase, ExecutionStepStatus } from '@/types/flow';
 import type { ExecutionPlan } from '@/types/plan';
 import { parseIntent } from '@/parser/intent-parser';
 import { generatePlans } from '@/planner/plan-generator';
 
 const initialState: FlowState = {
   phase: 'input',
+  phaseHistory: [],
   raw_intent: '',
   parse_result: null,
   edited_intent: null,
@@ -17,15 +18,20 @@ const initialState: FlowState = {
   result: null,
 };
 
+function pushHistory(state: FlowState): FlowPhase[] {
+  return [...state.phaseHistory, state.phase];
+}
+
 function reducer(state: FlowState, action: FlowAction): FlowState {
   switch (action.type) {
     case 'SUBMIT_INTENT':
-      return { ...state, phase: 'parsing', raw_intent: action.payload };
+      return { ...state, phase: 'parsing', phaseHistory: pushHistory(state), raw_intent: action.payload };
 
     case 'SET_PARSE_RESULT':
       return {
         ...state,
         phase: 'parsed',
+        phaseHistory: pushHistory(state),
         parse_result: action.payload,
         edited_intent: action.payload.selected,
       };
@@ -34,7 +40,7 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
       return { ...state, edited_intent: action.payload };
 
     case 'CONFIRM_INTENT':
-      return { ...state, phase: 'planning' };
+      return { ...state, phase: 'planning', phaseHistory: pushHistory(state) };
 
     case 'SET_PLANS':
       return { ...state, plans: action.payload, phase: 'planning' };
@@ -49,6 +55,7 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
         selected_plan: action.payload,
         execution_steps: steps,
         phase: 'executing',
+        phaseHistory: pushHistory(state),
       };
     }
 
@@ -62,7 +69,29 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
     }
 
     case 'SET_RESULT':
-      return { ...state, result: action.payload, phase: 'result' };
+      return { ...state, result: action.payload, phase: 'result', phaseHistory: pushHistory(state) };
+
+    case 'BACK': {
+      const history = [...state.phaseHistory];
+      // Pop back to the last meaningful phase (skip 'parsing' since it's transient)
+      let prevPhase: FlowPhase | undefined;
+      while (history.length > 0) {
+        prevPhase = history.pop();
+        if (prevPhase && prevPhase !== 'parsing') break;
+      }
+      if (!prevPhase || prevPhase === state.phase) {
+        return { ...initialState };
+      }
+      return {
+        ...state,
+        phase: prevPhase,
+        phaseHistory: history,
+        // Clear forward state based on where we're going back to
+        ...(prevPhase === 'input' ? { parse_result: null, edited_intent: null, plans: [], selected_plan: null, execution_steps: [], result: null } : {}),
+        ...(prevPhase === 'parsed' ? { plans: [], selected_plan: null, execution_steps: [], result: null } : {}),
+        ...(prevPhase === 'planning' ? { selected_plan: null, execution_steps: [], result: null } : {}),
+      };
+    }
 
     case 'RESET':
       return initialState;
@@ -79,7 +108,6 @@ export function useIntentFlow() {
   const submitIntent = useCallback((input: string) => {
     dispatch({ type: 'SUBMIT_INTENT', payload: input });
 
-    // Simulate parsing delay for animation
     setTimeout(() => {
       const result = parseIntent(input);
       dispatch({ type: 'SET_PARSE_RESULT', payload: result });
@@ -90,7 +118,6 @@ export function useIntentFlow() {
     dispatch({ type: 'CONFIRM_INTENT' });
 
     if (state.edited_intent) {
-      // Simulate planning delay
       setTimeout(() => {
         const result = generatePlans(state.edited_intent!);
         dispatch({ type: 'SET_PLANS', payload: result.plans });
@@ -101,25 +128,16 @@ export function useIntentFlow() {
   const selectPlan = useCallback((plan: ExecutionPlan) => {
     dispatch({ type: 'SELECT_PLAN', payload: plan });
 
-    // Simulate step-by-step execution
     const timers: NodeJS.Timeout[] = [];
-
     plan.steps.forEach((step, i) => {
-      // Set active
-      const activeTimer = setTimeout(() => {
+      timers.push(setTimeout(() => {
         dispatch({ type: 'UPDATE_STEP', payload: { index: i, status: 'active' } });
-      }, i * 1500 + 300);
-      timers.push(activeTimer);
-
-      // Set complete
-      const completeTimer = setTimeout(() => {
+      }, i * 1500 + 300));
+      timers.push(setTimeout(() => {
         dispatch({ type: 'UPDATE_STEP', payload: { index: i, status: 'complete' } });
-      }, (i + 1) * 1500);
-      timers.push(completeTimer);
+      }, (i + 1) * 1500));
     });
-
-    // Set final result
-    const resultTimer = setTimeout(() => {
+    timers.push(setTimeout(() => {
       dispatch({
         type: 'SET_RESULT',
         payload: {
@@ -131,27 +149,21 @@ export function useIntentFlow() {
           total_steps: plan.steps.length,
         },
       });
-    }, plan.steps.length * 1500 + 600);
-    timers.push(resultTimer);
-
+    }, plan.steps.length * 1500 + 600));
     executionRef.current = timers;
   }, []);
 
+  const goBack = useCallback(() => {
+    for (const timer of executionRef.current) clearTimeout(timer);
+    executionRef.current = [];
+    dispatch({ type: 'BACK' });
+  }, []);
+
   const reset = useCallback(() => {
-    // Clean up timers
-    for (const timer of executionRef.current) {
-      clearTimeout(timer);
-    }
+    for (const timer of executionRef.current) clearTimeout(timer);
     executionRef.current = [];
     dispatch({ type: 'RESET' });
   }, []);
 
-  return {
-    state,
-    dispatch,
-    submitIntent,
-    confirmIntent,
-    selectPlan,
-    reset,
-  };
+  return { state, dispatch, submitIntent, confirmIntent, selectPlan, goBack, reset };
 }

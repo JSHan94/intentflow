@@ -2,8 +2,15 @@
 
 import { useInterwovenKit } from '@initia/interwovenkit-react';
 import { JennieIcon } from '@/components/ui/JennieIcon';
+import type { NetworkType } from '@/config/chains';
 
-export function Header({ onHistoryClick }: { onHistoryClick?: () => void }) {
+interface HeaderProps {
+  onHistoryClick?: () => void;
+  network: NetworkType;
+  onNetworkToggle: () => void;
+}
+
+export function Header({ onHistoryClick, network, onNetworkToggle }: HeaderProps) {
   const { isConnected, address, openConnect, openWallet, disconnect } = useInterwovenKit();
 
   const truncated = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : '';
@@ -15,7 +22,19 @@ export function Header({ onHistoryClick }: { onHistoryClick?: () => void }) {
         <span className="font-mono text-sm font-black uppercase tracking-[3px]">IntentFlow</span>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
+        {/* Network toggle */}
+        <button
+          onClick={onNetworkToggle}
+          className={`px-3 py-1.5 border-[3px] border-black font-mono text-[8px] font-black uppercase tracking-[2px] shadow-[2px_2px_0_#000] transition-all ${
+            network === 'mainnet'
+              ? 'bg-[#CCFF00] text-black'
+              : 'bg-white text-[#999]'
+          }`}
+        >
+          {network === 'mainnet' ? '★ Mainnet' : 'Testnet'}
+        </button>
+
         {onHistoryClick && (
           <button
             onClick={onHistoryClick}

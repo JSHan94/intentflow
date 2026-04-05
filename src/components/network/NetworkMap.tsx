@@ -1,16 +1,19 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import type { TestnetChain } from '@/config/testnet-chains';
-import { INITIA_L1, TESTNET_MINITIAS } from '@/config/testnet-chains';
+import { useState, useMemo, useEffect } from 'react';
+import type { ChainConfig, NetworkType } from '@/config/chains';
+import { getL1, getRollups, getActions } from '@/config/chains';
 import type { ChainBalance } from '@/services/balance';
 import { JennieIcon } from '@/components/ui/JennieIcon';
 import { ChainPopup } from './ChainPopup';
+import { ActionNodes } from './ActionNodes';
 
 interface NetworkMapProps {
   balances: ChainBalance[];
   isConnected: boolean;
-  onQuickAction: (action: string, chain: TestnetChain) => void;
+  network: NetworkType;
+  onQuickAction: (action: string, chain: ChainConfig) => void;
+  onActionIntent: (intent: string) => void;
 }
 
 const MAP_W = 560;
@@ -25,9 +28,13 @@ function nodePos(i: number, total: number) {
   return { x: CX + ORB_X * Math.cos(angle), y: CY + ORB_Y * Math.sin(angle) };
 }
 
-export function NetworkMap({ balances, isConnected, onQuickAction }: NetworkMapProps) {
+export function NetworkMap({ balances, isConnected, network, onQuickAction, onActionIntent }: NetworkMapProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [popupPos, setPopupPos] = useState({ x: 0, y: 0 });
+  const [expandedChain, setExpandedChain] = useState<string | null>(null);
+
+  const l1 = getL1(network);
+  const rollups = getRollups(network);
 
   const balanceMap = useMemo(() => {
     const m: Record<string, ChainBalance> = {};
@@ -36,85 +43,139 @@ export function NetworkMap({ balances, isConnected, onQuickAction }: NetworkMapP
   }, [balances]);
 
   const l1Bal = balanceMap['initia_l1'];
-  const minitias = TESTNET_MINITIAS;
-  const hoveredConfig = hovered === 'initia_l1' ? INITIA_L1 : minitias.find(m => m.chainName === hovered);
+  const hoveredConfig = hovered === 'initia_l1' ? l1 : rollups.find(m => m.chainName === hovered);
 
-  // Fixed sizes — no dynamic scaling to prevent overflow
   const L1_SIZE = 50;
   const MINI_SIZE = 36;
+
+  // Close expanded on ESC
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpandedChain(null);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, []);
+
+  const handleNodeClick = (chainName: string) => {
+    setExpandedChain(prev => prev === chainName ? null : chainName);
+    setHovered(null);
+  };
+
+  const handleBgClick = () => {
+    setExpandedChain(null);
+  };
 
   return (
     <div className="relative w-full flex justify-center overflow-hidden">
       <div className="relative border-[3px] border-black bg-white shadow-[6px_6px_0_#000] w-full max-w-[580px]" style={{ aspectRatio: `${MAP_W}/${MAP_H}` }}>
-        <svg width="100%" height="100%" viewBox={`0 0 ${MAP_W} ${MAP_H}`} preserveAspectRatio="xMidYMid meet">
+        <svg
+          width="100%" height="100%"
+          viewBox={`0 0 ${MAP_W} ${MAP_H}`}
+          preserveAspectRatio="xMidYMid meet"
+          onClick={handleBgClick}
+        >
           {/* Connection lines */}
-          {minitias.map((chain, i) => {
-            const pos = nodePos(i, minitias.length);
+          {rollups.map((chain, i) => {
+            const pos = nodePos(i, rollups.length);
             const hasBal = parseInt(balanceMap[chain.chainName]?.totalInitAmount ?? '0') > 0;
+            const dimmed = expandedChain !== null && expandedChain !== chain.chainName && expandedChain !== 'initia_l1';
             return (
               <line key={`l-${chain.chainName}`}
                 x1={CX} y1={CY} x2={pos.x} y2={pos.y}
                 stroke="#000" strokeWidth={hasBal ? 2 : 1}
                 strokeDasharray={hasBal ? 'none' : '8,5'}
-                opacity={hasBal ? 0.25 : 0.08}
+                opacity={dimmed ? 0.05 : hasBal ? 0.25 : 0.08}
               />
             );
           })}
 
           {/* L1 center node */}
-          <g className="cursor-pointer"
-            onMouseEnter={() => { setHovered('initia_l1'); setPopupPos({ x: CX, y: CY - L1_SIZE - 12 }); }}
-            onMouseLeave={() => setHovered(null)}>
+          <g
+            className="cursor-pointer"
+            onClick={(e) => { e.stopPropagation(); handleNodeClick('initia_l1'); }}
+            onMouseEnter={() => { if (!expandedChain) { setHovered('initia_l1'); setPopupPos({ x: CX, y: CY - L1_SIZE - 12 }); } }}
+            onMouseLeave={() => setHovered(null)}
+            opacity={expandedChain && expandedChain !== 'initia_l1' ? 0.3 : 1}
+          >
             <rect x={CX - L1_SIZE} y={CY - L1_SIZE} width={L1_SIZE * 2} height={L1_SIZE * 2}
-              fill="#CCFF00" stroke="#000" strokeWidth="3" />
-            <text x={CX} y={CY - 8} textAnchor="middle"
-              fontSize="10" fontWeight="900" fill="#000" fontFamily="monospace" letterSpacing="2">
+              fill={expandedChain === 'initia_l1' ? '#CCFF00' : '#CCFF00'} stroke="#000" strokeWidth="3" />
+            <text x={CX} y={CY - 8} textAnchor="middle" fontSize="10" fontWeight="900" fill="#000" fontFamily="monospace" letterSpacing="2">
               INITIA L1
             </text>
-            <text x={CX} y={CY + 8} textAnchor="middle"
-              fontSize="13" fontWeight="900" fill="#000" fontFamily="monospace">
+            <text x={CX} y={CY + 8} textAnchor="middle" fontSize="13" fontWeight="900" fill="#000" fontFamily="monospace">
               {l1Bal?.totalInitHuman ?? '—'}
             </text>
-            <text x={CX} y={CY + 22} textAnchor="middle"
-              fontSize="9" fontWeight="700" fill="#666" fontFamily="monospace">
+            <text x={CX} y={CY + 22} textAnchor="middle" fontSize="9" fontWeight="700" fill="#666" fontFamily="monospace">
               INIT
             </text>
           </g>
 
-          {/* Minitia nodes */}
-          {minitias.map((chain, i) => {
-            const pos = nodePos(i, minitias.length);
+          {/* L1 action nodes when expanded */}
+          {expandedChain === 'initia_l1' && (
+            <ActionNodes
+              actions={getActions('initia_l1')}
+              parentX={CX}
+              parentY={CY}
+              parentSize={L1_SIZE}
+              onSelect={onActionIntent}
+            />
+          )}
+
+          {/* Rollup nodes */}
+          {rollups.map((chain, i) => {
+            const pos = nodePos(i, rollups.length);
             const bal = balanceMap[chain.chainName];
             const hasBal = parseInt(bal?.totalInitAmount ?? '0') > 0;
+            const isExpanded = expandedChain === chain.chainName;
+            const dimmed = expandedChain !== null && !isExpanded;
 
             return (
-              <g key={chain.chainName} className="cursor-pointer"
-                opacity={hasBal ? 1 : 0.3}
-                onMouseEnter={() => { setHovered(chain.chainName); setPopupPos({ x: pos.x, y: pos.y - MINI_SIZE - 12 }); }}
-                onMouseLeave={() => setHovered(null)}
-                onClick={() => onQuickAction('sweep', chain)}>
-                <rect x={pos.x - MINI_SIZE} y={pos.y - MINI_SIZE}
-                  width={MINI_SIZE * 2} height={MINI_SIZE * 2}
-                  fill="white" stroke="#000" strokeWidth="2.5" />
-                <text x={pos.x} y={pos.y - 6} textAnchor="middle"
-                  fontSize="9" fontWeight="900" fill="#000" fontFamily="monospace" letterSpacing="1">
-                  {chain.prettyName.toUpperCase()}
-                </text>
-                <text x={pos.x} y={pos.y + 8} textAnchor="middle"
-                  fontSize="11" fontWeight="900" fill="#000" fontFamily="monospace">
-                  {bal?.totalInitHuman ?? '—'}
-                </text>
-                <text x={pos.x} y={pos.y + 20} textAnchor="middle"
-                  fontSize="8" fontWeight="700" fill="#999" fontFamily="monospace">
-                  INIT
-                </text>
+              <g key={chain.chainName}>
+                {/* Node */}
+                <g
+                  className="cursor-pointer"
+                  opacity={dimmed ? 0.15 : hasBal ? 1 : 0.3}
+                  onClick={(e) => { e.stopPropagation(); handleNodeClick(chain.chainName); }}
+                  onMouseEnter={() => { if (!expandedChain) { setHovered(chain.chainName); setPopupPos({ x: pos.x, y: pos.y - MINI_SIZE - 12 }); } }}
+                  onMouseLeave={() => setHovered(null)}
+                >
+                  <rect x={pos.x - MINI_SIZE} y={pos.y - MINI_SIZE}
+                    width={MINI_SIZE * 2} height={MINI_SIZE * 2}
+                    fill={isExpanded ? chain.color : 'white'}
+                    stroke="#000" strokeWidth={isExpanded ? 3 : 2.5}
+                  />
+                  <text x={pos.x} y={pos.y - 6} textAnchor="middle"
+                    fontSize="9" fontWeight="900" fill={isExpanded ? '#000' : '#000'} fontFamily="monospace" letterSpacing="1">
+                    {chain.prettyName.toUpperCase()}
+                  </text>
+                  <text x={pos.x} y={pos.y + 8} textAnchor="middle"
+                    fontSize="11" fontWeight="900" fill="#000" fontFamily="monospace">
+                    {bal?.totalInitHuman ?? '—'}
+                  </text>
+                  <text x={pos.x} y={pos.y + 20} textAnchor="middle"
+                    fontSize="8" fontWeight="700" fill="#999" fontFamily="monospace">
+                    {chain.vmType.toUpperCase()}
+                  </text>
+                </g>
+
+                {/* Action nodes when expanded */}
+                {isExpanded && (
+                  <ActionNodes
+                    actions={getActions(chain.chainName)}
+                    parentX={pos.x}
+                    parentY={pos.y}
+                    parentSize={MINI_SIZE}
+                    onSelect={onActionIntent}
+                  />
+                )}
               </g>
             );
           })}
         </svg>
 
-        {/* Hover popup */}
-        {hovered && hoveredConfig && (
+        {/* Hover popup (only when no node is expanded) */}
+        {!expandedChain && hovered && hoveredConfig && (
           <ChainPopup chain={hoveredConfig} balance={balanceMap[hovered] ?? null} position={popupPos} onAction={onQuickAction} />
         )}
 

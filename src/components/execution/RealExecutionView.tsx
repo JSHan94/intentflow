@@ -1,7 +1,7 @@
 'use client';
 
 import type { ExecutionStep } from '@/hooks/useRealExecution';
-import { getTestnetChain } from '@/config/testnet-chains';
+import { findChainByChainId } from '@/config/chains';
 import { ChainIcon } from '@/components/ui/ChainIcon';
 import { JennieIcon } from '@/components/ui/JennieIcon';
 
@@ -49,7 +49,7 @@ export function RealExecutionView({ steps, phase, error }: RealExecutionViewProp
       {/* Steps */}
       <div className="w-full border-[3px] border-black bg-white shadow-[4px_4px_0_#000] overflow-hidden">
         {steps.map((step, i) => {
-          const chain = getTestnetChain(step.chainId);
+          const chain = findChainByChainId(step.chainId);
           return (
             <div
               key={i}

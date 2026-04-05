@@ -5,7 +5,7 @@ import { useInterwovenKit } from '@initia/interwovenkit-react';
 import type { DeliverTxResponse } from '@cosmjs/stargate';
 import { buildIbcTransferMsg } from '@/services/ibc-transfer';
 import { buildDelegateMsg, getTopValidator } from '@/services/staking';
-import { INITIA_L1, INIT_DENOM, type TestnetChain } from '@/config/testnet-chains';
+import { TESTNET_L1, INIT_DENOM, type ChainConfig } from '@/config/chains';
 import type { ChainBalance } from '@/services/balance';
 
 export type ExecutionPhase = 'idle' | 'sweeping' | 'waiting_ibc' | 'staking' | 'done' | 'error';
@@ -70,7 +70,7 @@ export function useRealExecution() {
     if (stakeAfterSweep) {
       steps.push({
         label: 'Stake INIT on Initia L1',
-        chainId: INITIA_L1.chainId,
+        chainId: TESTNET_L1.chainId,
         status: 'pending',
       });
     }
@@ -140,7 +140,7 @@ export function useRealExecution() {
 
         // Fetch L1 balance to determine stake amount
         const l1BalanceRes = await fetch(
-          `${INITIA_L1.restUrl}/cosmos/bank/v1beta1/balances/${receiverAddress}`
+          `${TESTNET_L1.restUrl}/cosmos/bank/v1beta1/balances/${receiverAddress}`
         );
         const l1Data = await l1BalanceRes.json();
         const l1Init = (l1Data.balances ?? []).find(
@@ -175,7 +175,7 @@ export function useRealExecution() {
 
         const result = await requestTxBlock({
           messages: [msg],
-          chainId: INITIA_L1.chainId,
+          chainId: TESTNET_L1.chainId,
         });
 
         if (result.code !== 0) {

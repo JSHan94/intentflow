@@ -1,6 +1,6 @@
 import type { ParsedIntent } from './intent';
 
-export type OperationType = 'ibc_transfer' | 'op_bridge_deposit' | 'op_bridge_withdraw' | 'minitswap' | 'transfer';
+export type OperationType = 'ibc_transfer' | 'op_bridge_deposit' | 'op_bridge_withdraw' | 'minitswap' | 'transfer' | 'stake';
 
 export type RiskLevel = 'low' | 'medium' | 'high';
 

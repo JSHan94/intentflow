@@ -1,6 +1,6 @@
 'use client';
 
-import { getChain } from '@/data/mock-chains';
+import { getChainConfig } from '@/config/chains';
 
 interface ChainIconProps {
   chainName: string;
@@ -8,9 +8,9 @@ interface ChainIconProps {
 }
 
 export function ChainIcon({ chainName, size = 28 }: ChainIconProps) {
-  const chain = getChain(chainName);
+  const chain = getChainConfig(chainName);
   const color = chain?.color ?? '#000';
-  const label = chain?.pretty_name ?? chainName;
+  const label = chain?.prettyName ?? chainName;
   const letter = label.charAt(0).toUpperCase();
 
   return (

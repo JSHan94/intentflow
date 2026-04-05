@@ -31,7 +31,7 @@ function detectAmbiguities(intent: ParsedIntent, actionMatched: boolean): Ambigu
     flags.push({
       field: 'action_type',
       reason: 'No clear action keyword found',
-      alternatives: ['sweep', 'consolidate', 'bridge', 'move'],
+      alternatives: ['sweep', 'consolidate', 'bridge', 'move', 'stake'],
     });
   }
 
@@ -94,7 +94,7 @@ export function parseIntent(rawInput: string): IntentParseResult {
 
   if (!actionMatched) {
     // Generate alternate action interpretations
-    const alternateActions = ['sweep', 'consolidate', 'move'] as const;
+    const alternateActions = ['sweep', 'consolidate', 'move', 'stake'] as const;
     for (const altAction of alternateActions) {
       if (altAction === primary.action_type) continue;
       const alt: ParsedIntent = {
@@ -109,7 +109,11 @@ export function parseIntent(rawInput: string): IntentParseResult {
   // If destination is unresolved for sweep/consolidate, default to initia_l1
   if (
     primary.destination.qualifier === 'unresolved' &&
-    (primary.action_type === 'sweep' || primary.action_type === 'consolidate')
+    (
+      primary.action_type === 'sweep' ||
+      primary.action_type === 'consolidate' ||
+      primary.action_type === 'stake'
+    )
   ) {
     primary.destination = { chain_name: 'initia_l1', qualifier: 'specific' };
     primary.confidence += 0.05;
