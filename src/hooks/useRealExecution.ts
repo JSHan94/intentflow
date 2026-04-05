@@ -71,7 +71,6 @@ function ensureTxSuccess(result: DeliverTxResponse): DeliverTxResponse {
 
 export function useRealExecution() {
   const {
-    address,
     initiaAddress,
     autoSign,
     estimateGas,
@@ -87,7 +86,7 @@ export function useRealExecution() {
     result: null,
   });
 
-  const walletAddress = initiaAddress || address;
+  const walletAddress = initiaAddress || undefined;
 
   const updateStep = useCallback((index: number, update: Partial<ExecutionStep>) => {
     setState((prev) => ({
@@ -148,7 +147,7 @@ export function useRealExecution() {
         estimateGas,
       });
       const transferAmount = computeMaxSpendableAmount(sourceBalance, feePlan.feeAmount);
-      if (BigInt(transferAmount) <= 0n) {
+      if (BigInt(transferAmount) <= BigInt(0)) {
         throw new Error(`Not enough ${sourceChain.prettyName} INIT to cover gas`);
       }
 
@@ -190,7 +189,7 @@ export function useRealExecution() {
         estimateGas,
       });
       const depositAmount = computeMaxSpendableAmount(sourceBalance, feePlan.feeAmount);
-      if (BigInt(depositAmount) <= 0n) {
+      if (BigInt(depositAmount) <= BigInt(0)) {
         throw new Error('Not enough Initia L1 INIT to cover bridge gas');
       }
 
@@ -225,7 +224,7 @@ export function useRealExecution() {
         estimateGas,
       });
       const stakeAmount = computeMaxSpendableAmount(l1Balance, feePlan.feeAmount);
-      if (BigInt(stakeAmount) <= 0n) {
+      if (BigInt(stakeAmount) <= BigInt(0)) {
         throw new Error('Not enough Initia L1 INIT to cover staking gas');
       }
 

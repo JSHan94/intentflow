@@ -6,6 +6,7 @@ import type { ExecutionPlan } from '@/types/plan';
 import { parseIntent } from '@/parser/intent-parser';
 import { generatePlans } from '@/planner/plan-generator';
 import type { ChainBalance } from '@/services/balance';
+import type { NetworkType } from '@/config/chains';
 
 const initialState: FlowState = {
   phase: 'input',
@@ -102,7 +103,7 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
   }
 }
 
-export function useIntentFlow(balances: ChainBalance[]) {
+export function useIntentFlow(balances: ChainBalance[], network: NetworkType = 'testnet') {
   const [state, dispatch] = useReducer(reducer, initialState);
 
   const submitIntent = useCallback((input: string) => {
@@ -119,11 +120,11 @@ export function useIntentFlow(balances: ChainBalance[]) {
 
     if (state.edited_intent) {
       setTimeout(() => {
-        const result = generatePlans(state.edited_intent!, balances);
+        const result = generatePlans(state.edited_intent!, balances, network);
         dispatch({ type: 'SET_PLANS', payload: result.plans });
       }, 800);
     }
-  }, [balances, state.edited_intent]);
+  }, [balances, network, state.edited_intent]);
 
   const selectPlan = useCallback((plan: ExecutionPlan) => {
     dispatch({ type: 'SELECT_PLAN', payload: plan });

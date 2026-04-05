@@ -1,10 +1,11 @@
 import {
   formatInitAmount,
   getChainConfig,
+  getL1,
   INIT_DECIMALS,
   INIT_DENOM,
-  TESTNET_L1,
   type ChainConfig,
+  type NetworkType,
 } from '@/config/chains';
 import type { ChainBalance } from '@/services/balance';
 import type { ParsedIntent } from '@/types/intent';
@@ -43,7 +44,7 @@ function getInitPositions(intent: ParsedIntent, balances: ChainBalance[]): InitP
   if (!supportsInit(intent)) return [];
 
   let positions = balances
-    .filter((balance) => BigInt(balance.totalInitAmount) > 0n)
+    .filter((balance) => BigInt(balance.totalInitAmount) > BigInt(0))
     .map((balance) => ({ chain: balance.chain, rawAmount: balance.totalInitAmount }));
 
   if (intent.source.qualifier === 'specific' && intent.source.chain_name) {
@@ -147,26 +148,26 @@ function buildPlan(
   };
 }
 
-function buildStakeSteps(positions: InitPosition[]): PlanStep[] {
+function buildStakeSteps(positions: InitPosition[], l1: ChainConfig): PlanStep[] {
   const steps: PlanStep[] = [];
-  const nonL1Positions = positions.filter((position) => position.chain.chainName !== TESTNET_L1.chainName);
+  const nonL1 = positions.filter((p) => p.chain.chainName !== l1.chainName);
 
-  for (const position of nonL1Positions) {
+  for (const position of nonL1) {
     steps.push(createStep({
       operation: 'ibc_transfer',
       source: position.chain,
-      destination: TESTNET_L1,
+      destination: l1,
       rawAmount: position.rawAmount,
       stepIndex: steps.length,
     }));
   }
 
-  const totalRawAmount = positions.reduce((sum, position) => sum + BigInt(position.rawAmount), 0n);
-  if (totalRawAmount > 0n) {
+  const totalRawAmount = positions.reduce((sum, p) => sum + BigInt(p.rawAmount), BigInt(0));
+  if (totalRawAmount > BigInt(0)) {
     steps.push(createStep({
       operation: 'stake',
-      source: TESTNET_L1,
-      destination: TESTNET_L1,
+      source: l1,
+      destination: l1,
       rawAmount: totalRawAmount.toString(),
       stepIndex: steps.length,
     }));
@@ -178,16 +179,17 @@ function buildStakeSteps(positions: InitPosition[]): PlanStep[] {
 function buildTransferSteps(
   positions: InitPosition[],
   destination: ChainConfig,
+  l1: ChainConfig,
 ): PlanStep[] {
   const steps: PlanStep[] = [];
 
-  if (destination.chainName === TESTNET_L1.chainName) {
-    const sourcePositions = positions.filter((position) => position.chain.chainName !== TESTNET_L1.chainName);
-    for (const position of sourcePositions) {
+  if (destination.chainName === l1.chainName) {
+    const nonL1 = positions.filter((p) => p.chain.chainName !== l1.chainName);
+    for (const position of nonL1) {
       steps.push(createStep({
         operation: 'ibc_transfer',
         source: position.chain,
-        destination: TESTNET_L1,
+        destination: l1,
         rawAmount: position.rawAmount,
         stepIndex: steps.length,
       }));
@@ -195,12 +197,12 @@ function buildTransferSteps(
     return steps;
   }
 
-  const l1Position = positions.find((position) => position.chain.chainName === TESTNET_L1.chainName);
+  const l1Position = positions.find((p) => p.chain.chainName === l1.chainName);
   if (!l1Position) return [];
 
   steps.push(createStep({
     operation: 'op_bridge_deposit',
-    source: TESTNET_L1,
+    source: l1,
     destination,
     rawAmount: l1Position.rawAmount,
     stepIndex: 0,
@@ -209,20 +211,25 @@ function buildTransferSteps(
   return steps;
 }
 
-export function generatePlans(intent: ParsedIntent, balances: ChainBalance[]): PlanGenerationResult {
+export function generatePlans(
+  intent: ParsedIntent,
+  balances: ChainBalance[],
+  network: NetworkType = 'testnet',
+): PlanGenerationResult {
+  const l1 = getL1(network);
   const positions = getInitPositions(intent, balances);
   const strategy = selectedStrategy(intent);
-  const destination = getChainConfig(resolveDestination(intent), 'testnet') ?? TESTNET_L1;
+  const destination = getChainConfig(resolveDestination(intent), network) ?? l1;
 
   let plan: ExecutionPlan | null = null;
 
   if (intent.action_type === 'stake') {
-    const totalRawAmount = positions.reduce((sum, position) => sum + BigInt(position.rawAmount), 0n);
-    plan = buildPlan(strategy, 'Stake Plan', buildStakeSteps(positions), totalRawAmount);
+    const totalRawAmount = positions.reduce((sum, p) => sum + BigInt(p.rawAmount), BigInt(0));
+    plan = buildPlan(strategy, 'Stake Plan', buildStakeSteps(positions, l1), totalRawAmount);
   } else {
-    const transferSteps = buildTransferSteps(positions, destination);
-    const label = destination.chainName === TESTNET_L1.chainName ? 'Sweep Plan' : 'Bridge Plan';
-    const totalRawAmount = transferSteps.reduce((sum, step) => sum + BigInt(step.raw_amount), 0n);
+    const transferSteps = buildTransferSteps(positions, destination, l1);
+    const label = destination.chainName === l1.chainName ? 'Sweep Plan' : 'Bridge Plan';
+    const totalRawAmount = transferSteps.reduce((sum, step) => sum + BigInt(step.raw_amount), BigInt(0));
     plan = buildPlan(strategy, label, transferSteps, totalRawAmount);
   }
 

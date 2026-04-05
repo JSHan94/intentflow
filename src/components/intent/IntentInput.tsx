@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { PRESET_INTENTS } from '@/data/preset-intents';
 
 interface IntentInputProps {
   onSubmit: (input: string) => void;

@@ -42,10 +42,10 @@ function trimTrailingZeros(value: string): string {
 
 function ceilDecimalProduct(integerValue: bigint, decimalValue: string): bigint {
   const [whole = '0', fractional = ''] = decimalValue.split('.');
-  const scale = 10n ** BigInt(fractional.length);
+  const scale = BigInt(10) ** BigInt(fractional.length);
   const scaled = BigInt(`${whole}${fractional}` || '0');
-  if (scale === 1n) return integerValue * scaled;
-  return (integerValue * scaled + scale - 1n) / scale;
+  if (scale === BigInt(1)) return integerValue * scaled;
+  return (integerValue * scaled + scale - BigInt(1)) / scale;
 }
 
 export async function simulateFeePlan({
@@ -83,7 +83,7 @@ export function computeMaxSpendableAmount(
   const fee = BigInt(feeAmount);
   const reserve = BigInt(extraReserveAmount);
   const spendable = balance - fee - reserve - SWEEP_SAFETY_BUFFER;
-  return spendable > 0n ? spendable.toString() : '0';
+  return spendable > BigInt(0) ? spendable.toString() : '0';
 }
 
 export async function waitForBalanceIncrease(params: {

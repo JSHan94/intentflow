@@ -2,7 +2,6 @@
 
 import type { ExecutionResult } from '@/types/flow';
 import type { ExecutionPlan } from '@/types/plan';
-import { MetricRow } from '@/components/ui/MetricRow';
 import { JennieIcon } from '@/components/ui/JennieIcon';
 
 interface ResultSummaryProps {

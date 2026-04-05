@@ -125,7 +125,7 @@ export function extractDestination(input: string): ChainReference {
     ?? input.match(/([\w-]+)\s*(?:로|으로)/i);
 
   // Check destination qualifiers
-  for (const [qualifier, synonyms] of Object.entries(DESTINATION_QUALIFIERS)) {
+  for (const [, synonyms] of Object.entries(DESTINATION_QUALIFIERS)) {
     for (const synonym of synonyms) {
       if (input.includes(synonym)) {
         // "one wallet" / "one destination" defaults to initia_l1

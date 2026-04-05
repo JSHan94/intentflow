@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import type { ChainConfig, NetworkType } from '@/config/chains';
-import { getL1, getRollups } from '@/config/chains';
+import { useMemo } from 'react';
+import type { NetworkType } from '@/config/chains';
+import { getRollups } from '@/config/chains';
 import type { ChainBalance } from '@/services/balance';
 import { JennieIcon } from '@/components/ui/JennieIcon';
 
@@ -12,7 +12,6 @@ interface NetworkMapProps {
   network: NetworkType;
   selectedChain: string | null;
   onChainSelect: (chainName: string | null) => void;
-  onQuickAction: (action: string, chain: ChainConfig) => void;
 }
 
 const MAP_W = 440;
@@ -27,10 +26,7 @@ function nodePos(i: number, total: number) {
   return { x: CX + ORB_X * Math.cos(angle), y: CY + ORB_Y * Math.sin(angle) };
 }
 
-export function NetworkMap({ balances, isConnected, network, selectedChain, onChainSelect, onQuickAction }: NetworkMapProps) {
-  const [hovered, setHovered] = useState<string | null>(null);
-
-  const l1 = getL1(network);
+export function NetworkMap({ balances, isConnected, network, selectedChain, onChainSelect }: NetworkMapProps) {
   const rollups = getRollups(network);
 
   const balanceMap = useMemo(() => {

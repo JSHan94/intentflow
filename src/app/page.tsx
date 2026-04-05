@@ -20,7 +20,7 @@ import { RecentHistory } from '@/components/history/RecentHistory';
 import { useIntentFlow } from '@/hooks/useIntentFlow';
 import { useMultiChainBalances } from '@/hooks/useMultiChainBalances';
 import { useRealExecution } from '@/hooks/useRealExecution';
-import { getChainConfig, type ChainConfig, type NetworkType } from '@/config/chains';
+import { getChainConfig, type NetworkType } from '@/config/chains';
 import type { HistoryEntry, FlowPhase } from '@/types/flow';
 
 function saveToHistory(entry: HistoryEntry) {
@@ -36,15 +36,15 @@ const transition = { duration: 0.15, ease: 'easeOut' as const };
 
 export default function Home() {
   const router = useRouter();
-  const { isConnected, openConnect, address, initiaAddress } = useInterwovenKit();
-  const [network] = useState<NetworkType>('testnet');
+  const { isConnected, openConnect, initiaAddress } = useInterwovenKit();
+  const [network, setNetwork] = useState<NetworkType>('mainnet');
   const [selectedChain, setSelectedChain] = useState<string | null>(null);
-  const walletAddress = initiaAddress || address;
-  const { balances, isLoading: balancesLoading, refetch: refetchBalances } = useMultiChainBalances(
+  const walletAddress = initiaAddress || undefined;
+  const { balances, refetch: refetchBalances } = useMultiChainBalances(
     isConnected ? walletAddress : undefined,
     network,
   );
-  const { state, submitIntent, confirmIntent, selectPlan, goBack, reset, dispatch } = useIntentFlow(balances);
+  const { state, submitIntent, confirmIntent, selectPlan, goBack, reset, dispatch } = useIntentFlow(balances, network);
   const { state: execState, executePlan, reset: resetExec } = useRealExecution();
 
   const handleSelectPlan = (plan: Parameters<typeof selectPlan>[0]) => {
@@ -71,16 +71,6 @@ export default function Home() {
     refetchBalances();
   };
 
-  const handleNetworkAction = (action: string, chain: ChainConfig) => {
-    if (action === 'explorer') {
-      if (walletAddress) window.open(`${chain.explorerUrl}/address/${walletAddress}`, '_blank');
-      return;
-    }
-    if (action === 'sweep') submitIntent(`Sweep all INIT from ${chain.prettyName} to Initia L1`);
-    else if (action === 'stake') submitIntent('Stake my INIT on Initia L1');
-    else if (action === 'bridge') submitIntent(`Bridge assets to ${chain.prettyName}`);
-  };
-
   const handleActionIntent = (intent: string) => {
     setSelectedChain(null);
     submitIntent(intent);
@@ -105,7 +95,7 @@ export default function Home() {
       <Header
         onHistoryClick={() => router.push('/history')}
         network={network}
-        onNetworkToggle={() => {}}
+        onNetworkToggle={() => { setNetwork(n => n === 'mainnet' ? 'testnet' : 'mainnet'); setSelectedChain(null); }}
       />
 
       <main className="flex-1 flex flex-col px-4 pt-20 pb-8">
@@ -135,7 +125,6 @@ export default function Home() {
                   network={network}
                   selectedChain={selectedChain}
                   onChainSelect={setSelectedChain}
-                  onQuickAction={handleNetworkAction}
                 />
               </div>
 
@@ -182,7 +171,6 @@ export default function Home() {
                 network={network}
                 selectedChain={null}
                 onChainSelect={() => {}}
-                onQuickAction={() => openConnect()}
               />
               <h1 className="font-mono text-xl font-black uppercase tracking-[3px]">Welcome to IntentFlow</h1>
               <p className="font-mono text-xs text-[#999] max-w-sm">

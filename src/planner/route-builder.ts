@@ -1,5 +1,5 @@
 import type { OperationType } from '@/types/plan';
-import { MOCK_FEES, lookupFees } from '@/data/mock-fees';
+import { lookupFees } from '@/data/mock-fees';
 
 export interface RouteHop {
   from: string;
