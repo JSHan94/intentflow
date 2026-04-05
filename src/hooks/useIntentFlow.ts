@@ -1,10 +1,11 @@
 'use client';
 
-import { useReducer, useCallback, useRef } from 'react';
+import { useReducer, useCallback } from 'react';
 import type { FlowState, FlowAction, FlowPhase, ExecutionStepStatus } from '@/types/flow';
 import type { ExecutionPlan } from '@/types/plan';
 import { parseIntent } from '@/parser/intent-parser';
 import { generatePlans } from '@/planner/plan-generator';
+import type { ChainBalance } from '@/services/balance';
 
 const initialState: FlowState = {
   phase: 'input',
@@ -101,9 +102,8 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
   }
 }
 
-export function useIntentFlow() {
+export function useIntentFlow(balances: ChainBalance[]) {
   const [state, dispatch] = useReducer(reducer, initialState);
-  const executionRef = useRef<NodeJS.Timeout[]>([]);
 
   const submitIntent = useCallback((input: string) => {
     dispatch({ type: 'SUBMIT_INTENT', payload: input });
@@ -119,49 +119,21 @@ export function useIntentFlow() {
 
     if (state.edited_intent) {
       setTimeout(() => {
-        const result = generatePlans(state.edited_intent!);
+        const result = generatePlans(state.edited_intent!, balances);
         dispatch({ type: 'SET_PLANS', payload: result.plans });
       }, 800);
     }
-  }, [state.edited_intent]);
+  }, [balances, state.edited_intent]);
 
   const selectPlan = useCallback((plan: ExecutionPlan) => {
     dispatch({ type: 'SELECT_PLAN', payload: plan });
-
-    const timers: NodeJS.Timeout[] = [];
-    plan.steps.forEach((step, i) => {
-      timers.push(setTimeout(() => {
-        dispatch({ type: 'UPDATE_STEP', payload: { index: i, status: 'active' } });
-      }, i * 1500 + 300));
-      timers.push(setTimeout(() => {
-        dispatch({ type: 'UPDATE_STEP', payload: { index: i, status: 'complete' } });
-      }, (i + 1) * 1500));
-    });
-    timers.push(setTimeout(() => {
-      dispatch({
-        type: 'SET_RESULT',
-        payload: {
-          success: true,
-          final_state: `Assets delivered to ${plan.steps[plan.steps.length - 1]?.destination_chain ?? 'destination'}`,
-          total_cost_usd: plan.total_estimated_fee_usd,
-          total_time_seconds: plan.total_estimated_time_seconds,
-          steps_completed: plan.steps.length,
-          total_steps: plan.steps.length,
-        },
-      });
-    }, plan.steps.length * 1500 + 600));
-    executionRef.current = timers;
   }, []);
 
   const goBack = useCallback(() => {
-    for (const timer of executionRef.current) clearTimeout(timer);
-    executionRef.current = [];
     dispatch({ type: 'BACK' });
   }, []);
 
   const reset = useCallback(() => {
-    for (const timer of executionRef.current) clearTimeout(timer);
-    executionRef.current = [];
     dispatch({ type: 'RESET' });
   }, []);
 

@@ -8,11 +8,11 @@ import { Header } from '@/components/layout/Header';
 import { PhaseBar } from '@/components/ui/PhaseBar';
 import { JennieIcon } from '@/components/ui/JennieIcon';
 import { NetworkMap } from '@/components/network/NetworkMap';
+import { ChainDetailPanel } from '@/components/network/ChainDetailPanel';
 import { IntentInput } from '@/components/intent/IntentInput';
 import { QuickActions } from '@/components/intent/QuickActions';
 import { ParseAnimation } from '@/components/intent/ParseAnimation';
 import { ParsedFields } from '@/components/parsed/ParsedFields';
-import { BalanceOverview } from '@/components/parsed/BalanceOverview';
 import { PlanCards } from '@/components/plan/PlanCards';
 import { RealExecutionView } from '@/components/execution/RealExecutionView';
 import { ResultSummary } from '@/components/result/ResultSummary';
@@ -20,7 +20,7 @@ import { RecentHistory } from '@/components/history/RecentHistory';
 import { useIntentFlow } from '@/hooks/useIntentFlow';
 import { useMultiChainBalances } from '@/hooks/useMultiChainBalances';
 import { useRealExecution } from '@/hooks/useRealExecution';
-import type { ChainConfig, NetworkType } from '@/config/chains';
+import { getChainConfig, type ChainConfig, type NetworkType } from '@/config/chains';
 import type { HistoryEntry, FlowPhase } from '@/types/flow';
 
 function saveToHistory(entry: HistoryEntry) {
@@ -36,39 +36,34 @@ const transition = { duration: 0.15, ease: 'easeOut' as const };
 
 export default function Home() {
   const router = useRouter();
-  const { isConnected, openConnect, address } = useInterwovenKit();
-  const [network, setNetwork] = useState<NetworkType>('mainnet');
-  const { state, submitIntent, confirmIntent, selectPlan, goBack, reset, dispatch } = useIntentFlow();
-  const { balances, sweepableChains, isLoading: balancesLoading, refetch: refetchBalances } = useMultiChainBalances(
-    isConnected ? address : undefined
+  const { isConnected, openConnect, address, initiaAddress } = useInterwovenKit();
+  const [network] = useState<NetworkType>('testnet');
+  const [selectedChain, setSelectedChain] = useState<string | null>(null);
+  const walletAddress = initiaAddress || address;
+  const { balances, isLoading: balancesLoading, refetch: refetchBalances } = useMultiChainBalances(
+    isConnected ? walletAddress : undefined,
+    network,
   );
-  const { state: execState, executeSweepAndStake, reset: resetExec } = useRealExecution();
+  const { state, submitIntent, confirmIntent, selectPlan, goBack, reset, dispatch } = useIntentFlow(balances);
+  const { state: execState, executePlan, reset: resetExec } = useRealExecution();
 
   const handleSelectPlan = (plan: Parameters<typeof selectPlan>[0]) => {
     selectPlan(plan);
-    const shouldStake = state.edited_intent?.action_type === 'sweep' ||
-      state.edited_intent?.action_type === 'consolidate';
-    executeSweepAndStake(sweepableChains, shouldStake);
+    executePlan(plan);
   };
 
   useEffect(() => {
-    if (execState.phase === 'done' && state.selected_plan) {
+    if (execState.phase === 'done' && state.selected_plan && execState.result) {
       saveToHistory({
         id: crypto.randomUUID(),
         raw_intent: state.raw_intent,
         plan_type: state.selected_plan.label,
-        result: {
-          success: true,
-          final_state: 'Assets swept and staked on Initia L1',
-          total_cost_usd: state.selected_plan.total_estimated_fee_usd,
-          total_time_seconds: state.selected_plan.total_estimated_time_seconds,
-          steps_completed: execState.steps.filter(s => s.status === 'complete').length,
-          total_steps: execState.steps.length,
-        },
+        result: execState.result,
         timestamp: Date.now(),
       });
+      refetchBalances();
     }
-  }, [execState.phase, state.selected_plan, state.raw_intent, execState.steps]);
+  }, [execState.phase, execState.result, refetchBalances, state.raw_intent, state.selected_plan]);
 
   const handleReset = () => {
     reset();
@@ -78,54 +73,50 @@ export default function Home() {
 
   const handleNetworkAction = (action: string, chain: ChainConfig) => {
     if (action === 'explorer') {
-      window.open(`${chain.explorerUrl}/address/${address}`, '_blank');
+      if (walletAddress) window.open(`${chain.explorerUrl}/address/${walletAddress}`, '_blank');
       return;
     }
-    if (action === 'sweep') {
-      submitIntent(`Sweep all INIT from ${chain.prettyName} to Initia L1`);
-    } else if (action === 'stake') {
-      submitIntent('Stake my INIT on Initia L1');
-    } else if (action === 'bridge') {
-      submitIntent(`Bridge assets to ${chain.prettyName}`);
-    }
+    if (action === 'sweep') submitIntent(`Sweep all INIT from ${chain.prettyName} to Initia L1`);
+    else if (action === 'stake') submitIntent('Stake my INIT on Initia L1');
+    else if (action === 'bridge') submitIntent(`Bridge assets to ${chain.prettyName}`);
   };
 
   const handleActionIntent = (intent: string) => {
+    setSelectedChain(null);
     submitIntent(intent);
   };
 
   const handleGoBack = () => {
-    if (execState.phase !== 'idle') {
-      resetExec();
-    }
+    if (execState.phase !== 'idle') resetExec();
     goBack();
   };
 
   const showRealExecution = execState.phase !== 'idle';
-
   let displayPhase: FlowPhase = state.phase;
   if (showRealExecution && execState.phase !== 'done') displayPhase = 'executing';
   if (execState.phase === 'done') displayPhase = 'result';
-
   const showDashboard = state.phase === 'input' && !showRealExecution;
+
+  const selectedChainConfig = selectedChain ? getChainConfig(selectedChain) : null;
+  const selectedChainBalance = selectedChain ? balances.find(b => b.chain.chainName === selectedChain) ?? null : null;
 
   return (
     <div className="flex flex-col min-h-screen">
       <Header
         onHistoryClick={() => router.push('/history')}
         network={network}
-        onNetworkToggle={() => setNetwork(n => n === 'mainnet' ? 'testnet' : 'mainnet')}
+        onNetworkToggle={() => {}}
       />
 
       <main className="flex-1 flex flex-col px-4 pt-20 pb-8">
-        {/* Phase bar — shown during non-dashboard phases */}
+        {/* Phase bar */}
         {isConnected && !showDashboard && (
-          <div className="w-full max-w-2xl mx-auto mb-6 mt-4">
+          <div className="w-full max-w-3xl mx-auto mb-6 mt-4">
             <PhaseBar currentPhase={displayPhase} onBack={handleGoBack} />
           </div>
         )}
 
-        {/* DASHBOARD VIEW — Input phase */}
+        {/* DASHBOARD — split layout: map left, detail right */}
         {isConnected && showDashboard && (
           <motion.div
             key="dashboard"
@@ -133,15 +124,41 @@ export default function Home() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={transition}
-            className="w-full max-w-2xl mx-auto space-y-5 mt-4"
+            className="w-full max-w-5xl mx-auto mt-4 space-y-5"
           >
-            <NetworkMap
-              balances={balances}
-              isConnected={isConnected}
-              network={network}
-              onQuickAction={handleNetworkAction}
-              onActionIntent={handleActionIntent}
-            />
+            <div className="flex gap-5">
+              {/* Left: Network Map */}
+              <div className="flex-1 min-w-0">
+                <NetworkMap
+                  balances={balances}
+                  isConnected={isConnected}
+                  network={network}
+                  selectedChain={selectedChain}
+                  onChainSelect={setSelectedChain}
+                  onQuickAction={handleNetworkAction}
+                />
+              </div>
+
+              {/* Right: Chain Detail Panel */}
+              <div className="w-[280px] shrink-0">
+                {selectedChainConfig ? (
+                  <ChainDetailPanel
+                    chain={selectedChainConfig}
+                    balance={selectedChainBalance}
+                    onAction={handleActionIntent}
+                    onClose={() => setSelectedChain(null)}
+                  />
+                ) : (
+                  <div className="border-[3px] border-black bg-white shadow-[6px_6px_0_#000] p-5 flex flex-col items-center justify-center min-h-[300px] text-center">
+                    <JennieIcon expression="neutral" size="lg" />
+                    <p className="font-mono text-[10px] font-bold uppercase tracking-[2px] text-[#999] mt-3">
+                      Select a rollup<br />to see details
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
             <IntentInput onSubmit={submitIntent} />
             <QuickActions onAction={handleActionIntent} />
             <RecentHistory />
@@ -163,12 +180,11 @@ export default function Home() {
                 balances={[]}
                 isConnected={false}
                 network={network}
+                selectedChain={null}
+                onChainSelect={() => {}}
                 onQuickAction={() => openConnect()}
-                onActionIntent={() => openConnect()}
               />
-              <h1 className="font-mono text-xl font-black uppercase tracking-[3px]">
-                Welcome to IntentFlow
-              </h1>
+              <h1 className="font-mono text-xl font-black uppercase tracking-[3px]">Welcome to IntentFlow</h1>
               <p className="font-mono text-xs text-[#999] max-w-sm">
                 Describe what you want to do across Initia rollups in natural language. Connect your wallet to get started.
               </p>
@@ -197,12 +213,10 @@ export default function Home() {
                   <ParsedFields
                     intent={state.edited_intent}
                     ambiguities={state.parse_result.ambiguities}
+                    balances={balances}
                     onConfirm={confirmIntent}
                     onEdit={(intent) => dispatch({ type: 'EDIT_INTENT', payload: intent })}
                   />
-                  <div className="max-w-2xl mx-auto mt-5">
-                    <BalanceOverview balances={balances} isLoading={balancesLoading} />
-                  </div>
                 </motion.div>
               )}
 
@@ -228,31 +242,22 @@ export default function Home() {
                 </motion.div>
               )}
 
-              {execState.phase === 'done' && state.selected_plan && (
+              {execState.phase === 'done' && state.selected_plan && execState.result && (
                 <motion.div key="result" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={transition} className="w-full">
                   <div className="flex justify-center mb-4">
                     <JennieIcon expression="happy" size="lg" />
                   </div>
                   <ResultSummary
-                    result={{
-                      success: true,
-                      final_state: 'Assets swept and staked on Initia L1',
-                      total_cost_usd: state.selected_plan.total_estimated_fee_usd,
-                      total_time_seconds: state.selected_plan.total_estimated_time_seconds,
-                      steps_completed: execState.steps.filter(s => s.status === 'complete').length,
-                      total_steps: execState.steps.length,
-                    }}
+                    result={execState.result}
                     plan={state.selected_plan}
                     rawIntent={state.raw_intent}
                     onNewIntent={handleReset}
                   />
                   <div className="max-w-lg mx-auto mt-4 space-y-2">
                     {execState.steps.filter(s => s.txHash).map((step, i) => (
-                      <a
-                        key={i}
+                      <a key={i}
                         href={`https://scan.testnet.initia.xyz/txs/${step.txHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-2 px-3 py-2 border-[3px] border-black bg-white font-mono text-[10px] text-[#FF5733] shadow-[2px_2px_0_#000] hover:shadow-[3px_3px_0_#000] transition-all"
                       >
                         <span className="text-[#999]">{step.label.split(' ').slice(0, 3).join(' ')}</span>

@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { fetchAllBalances, type ChainBalance } from '@/services/balance';
+import type { NetworkType } from '@/config/chains';
+import { fetchAllBalancesByNetwork, type ChainBalance } from '@/services/balance';
 
-export function useMultiChainBalances(address: string | undefined) {
+export function useMultiChainBalances(address: string | undefined, network: NetworkType) {
   const [balances, setBalances] = useState<ChainBalance[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,14 +19,14 @@ export function useMultiChainBalances(address: string | undefined) {
     setError(null);
 
     try {
-      const results = await fetchAllBalances(address);
+      const results = await fetchAllBalancesByNetwork(address, network);
       setBalances(results);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch balances');
     } finally {
       setIsLoading(false);
     }
-  }, [address]);
+  }, [address, network]);
 
   useEffect(() => {
     refetch();

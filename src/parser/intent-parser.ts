@@ -39,7 +39,7 @@ function detectAmbiguities(intent: ParsedIntent, actionMatched: boolean): Ambigu
     flags.push({
       field: 'destination',
       reason: 'No destination specified',
-      alternatives: ['initia_l1', 'blackwing', 'echelon', 'tucana'],
+      alternatives: ['initia_l1', 'minievm'],
     });
   }
 
@@ -47,7 +47,7 @@ function detectAmbiguities(intent: ParsedIntent, actionMatched: boolean): Ambigu
     flags.push({
       field: 'source',
       reason: 'No source specified',
-      alternatives: ['all chains', 'blackwing', 'echelon', 'tucana'],
+      alternatives: ['all chains', 'initia_l1', 'minievm'],
     });
   }
 

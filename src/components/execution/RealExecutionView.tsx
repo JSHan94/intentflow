@@ -28,6 +28,7 @@ export function RealExecutionView({ steps, phase, error }: RealExecutionViewProp
         <JennieIcon expression={phase === 'error' ? 'sad' : 'thinking'} size="md" />
         <h2 className="font-mono text-sm font-black uppercase tracking-[3px]">
           {phase === 'sweeping' && '★ Sweeping...'}
+          {phase === 'bridging' && '★ Bridging...'}
           {phase === 'waiting_ibc' && '★ IBC Relay...'}
           {phase === 'staking' && '★ Staking...'}
           {phase === 'done' && '★ Done'}

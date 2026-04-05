@@ -1,4 +1,5 @@
 import type { EncodeObject } from '@cosmjs/proto-signing';
+import { MsgDelegate } from '@initia/initia.js';
 import { TESTNET_L1, INIT_DENOM } from '@/config/chains';
 
 export interface ValidatorInfo {
@@ -49,13 +50,15 @@ export function buildDelegateMsg(
   amount: string,
   denom: string = INIT_DENOM,
 ): EncodeObject {
+  const msg = new MsgDelegate(
+    delegatorAddress,
+    validatorAddress,
+    { [denom]: amount },
+  );
+
   return {
     typeUrl: '/initia.mstaking.v1.MsgDelegate',
-    value: {
-      delegatorAddress,
-      validatorAddress,
-      amount: [{ denom, amount }],
-    },
+    value: msg.toProto(),
   };
 }
 

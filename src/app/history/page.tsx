@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import type { HistoryEntry } from '@/types/flow';
 import { JennieIcon } from '@/components/ui/JennieIcon';
@@ -14,11 +14,7 @@ function getHistory(): HistoryEntry[] {
 }
 
 export default function HistoryPage() {
-  const [entries, setEntries] = useState<HistoryEntry[]>([]);
-
-  useEffect(() => {
-    setEntries(getHistory());
-  }, []);
+  const [entries] = useState<HistoryEntry[]>(() => getHistory());
 
   return (
     <div className="flex flex-col min-h-screen">

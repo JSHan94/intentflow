@@ -1,4 +1,4 @@
-import { getAllChains, INIT_DENOM, INIT_DECIMALS, type ChainConfig } from '@/config/chains';
+import { getAllChains, INIT_DENOM, INIT_DECIMALS, type ChainConfig, type NetworkType } from '@/config/chains';
 
 export interface ChainBalance {
   chain: ChainConfig;
@@ -13,6 +13,38 @@ export interface TokenBalance {
   humanAmount: string;
 }
 
+interface BankBalancesResponse {
+  balances?: { denom: string; amount: string }[];
+}
+
+async function fetchBalancesResponse(
+  chain: ChainConfig,
+  address: string,
+): Promise<BankBalancesResponse | null> {
+  const url = `${chain.restUrl}/cosmos/bank/v1beta1/balances/${address}`;
+
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) {
+      return null;
+    }
+
+    return await res.json() as BankBalancesResponse;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchDenomBalance(
+  chain: ChainConfig,
+  address: string,
+  denom: string = INIT_DENOM,
+): Promise<string> {
+  const data = await fetchBalancesResponse(chain, address);
+  const balances = data?.balances ?? [];
+  return balances.find((balance) => balance.denom === denom)?.amount ?? '0';
+}
+
 /**
  * Fetch all token balances for an address on a specific chain
  */
@@ -20,16 +52,9 @@ export async function fetchChainBalances(
   chain: ChainConfig,
   address: string,
 ): Promise<ChainBalance> {
-  const url = `${chain.restUrl}/cosmos/bank/v1beta1/balances/${address}`;
-
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-    if (!res.ok) {
-      return { chain, balances: [], totalInitAmount: '0', totalInitHuman: '0.00' };
-    }
-
-    const data = await res.json();
-    const rawBalances: { denom: string; amount: string }[] = data.balances ?? [];
+    const data = await fetchBalancesResponse(chain, address);
+    const rawBalances: { denom: string; amount: string }[] = data?.balances ?? [];
 
     const balances: TokenBalance[] = rawBalances.map((b) => ({
       denom: b.denom,
@@ -54,8 +79,15 @@ export async function fetchChainBalances(
  * Fetch balances from all configured chains in parallel
  */
 export async function fetchAllBalances(address: string): Promise<ChainBalance[]> {
+  return fetchAllBalancesByNetwork(address, 'testnet');
+}
+
+export async function fetchAllBalancesByNetwork(
+  address: string,
+  network: NetworkType,
+): Promise<ChainBalance[]> {
   const results = await Promise.allSettled(
-    getAllChains('testnet').map((chain) => fetchChainBalances(chain, address))
+    getAllChains(network).map((chain) => fetchChainBalances(chain, address))
   );
 
   return results

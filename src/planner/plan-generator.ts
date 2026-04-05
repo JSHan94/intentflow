@@ -1,171 +1,234 @@
+import {
+  formatInitAmount,
+  getChainConfig,
+  INIT_DECIMALS,
+  INIT_DENOM,
+  TESTNET_L1,
+  type ChainConfig,
+} from '@/config/chains';
+import type { ChainBalance } from '@/services/balance';
 import type { ParsedIntent } from '@/types/intent';
-import type { ExecutionPlan, PlanStep, PlanGenerationResult, StrategyType } from '@/types/plan';
-import type { UserBalance } from '@/types/chain';
-import { MOCK_BALANCES } from '@/data/mock-balances';
-import { CHAINS, getAsset, getChain } from '@/data/mock-chains';
-import { buildRoutes, cheapestRoute, fastestRoute, fewestHopsRoute, type Route } from './route-builder';
+import type { ExecutionPlan, PlanGenerationResult, PlanStep, StrategyType } from '@/types/plan';
 
-interface BalanceRoute {
-  balance: UserBalance;
-  routes: Route[];
+const INIT_PRICE_USD = 0.85;
+
+const STEP_COST_USD: Record<PlanStep['operation'], number> = {
+  ibc_transfer: 0.01,
+  op_bridge_deposit: 0.02,
+  op_bridge_withdraw: 0.02,
+  minitswap: 0.01,
+  transfer: 0.01,
+  stake: 0.01,
+};
+
+const STEP_TIME_SECONDS: Record<PlanStep['operation'], number> = {
+  ibc_transfer: 60,
+  op_bridge_deposit: 45,
+  op_bridge_withdraw: 300,
+  minitswap: 10,
+  transfer: 15,
+  stake: 20,
+};
+
+interface InitPosition {
+  chain: ChainConfig;
+  rawAmount: string;
 }
 
-function filterBalances(intent: ParsedIntent): UserBalance[] {
-  let balances = [...MOCK_BALANCES];
+function supportsInit(intent: ParsedIntent): boolean {
+  return intent.assets.some((asset) => asset.symbol === 'ALL' || asset.symbol === 'INIT');
+}
 
-  // Filter by asset
-  const isAll = intent.assets.some(a => a.symbol === 'ALL');
-  if (!isAll) {
-    const symbols = new Set(intent.assets.map(a => a.symbol));
-    balances = balances.filter(b => symbols.has(b.asset));
-  }
+function getInitPositions(intent: ParsedIntent, balances: ChainBalance[]): InitPosition[] {
+  if (!supportsInit(intent)) return [];
 
-  // Filter by source
+  let positions = balances
+    .filter((balance) => BigInt(balance.totalInitAmount) > 0n)
+    .map((balance) => ({ chain: balance.chain, rawAmount: balance.totalInitAmount }));
+
   if (intent.source.qualifier === 'specific' && intent.source.chain_name) {
-    balances = balances.filter(b => b.chain_name === intent.source.chain_name);
+    positions = positions.filter((position) => position.chain.chainName === intent.source.chain_name);
   }
 
-  // Apply exclusions
   for (const exclusion of intent.exclusions) {
     if (exclusion.type === 'chain') {
-      balances = balances.filter(b => b.chain_name !== exclusion.value);
-    } else {
-      balances = balances.filter(b => b.asset !== exclusion.value);
+      positions = positions.filter((position) => position.chain.chainName !== exclusion.value);
     }
   }
 
-  return balances;
+  return positions;
 }
 
 function resolveDestination(intent: ParsedIntent): string {
   if (intent.destination.qualifier === 'specific' && intent.destination.chain_name) {
     return intent.destination.chain_name;
   }
-  return 'initia_l1'; // Default destination
+
+  if (intent.action_type === 'bridge' || intent.action_type === 'move') {
+    return 'minievm';
+  }
+
+  return 'initia_l1';
 }
 
-function routeToSteps(route: Route, balance: UserBalance, stepOffset: number): PlanStep[] {
-  return route.hops.map((hop, i) => ({
-    step_index: stepOffset + i,
-    operation: hop.method,
-    source_chain: hop.from,
-    destination_chain: hop.to,
-    asset: balance.asset,
-    amount: `${balance.amount} ${balance.asset}`,
-    raw_amount: balance.raw_amount,
-    estimated_fee_usd: hop.fee_usd,
-    estimated_time_seconds: hop.time_seconds,
-    requires_previous: i > 0,
+function selectedStrategy(intent: ParsedIntent): StrategyType {
+  if (intent.fee_preference === 'fastest') return 'fastest';
+  if (intent.fee_preference === 'balanced') return 'best_recovery';
+  return 'cheapest';
+}
+
+function labelForStrategy(strategy: StrategyType, fallback: string): string {
+  switch (strategy) {
+    case 'fastest':
+      return `Fastest ${fallback}`;
+    case 'best_recovery':
+      return `Balanced ${fallback}`;
+    case 'cheapest':
+    default:
+      return `Cheapest ${fallback}`;
+  }
+}
+
+function createStep(args: {
+  operation: PlanStep['operation'];
+  source: ChainConfig;
+  destination: ChainConfig;
+  rawAmount: string;
+  stepIndex: number;
+}): PlanStep {
+  return {
+    step_index: args.stepIndex,
+    operation: args.operation,
+    source_chain: args.source.chainName,
+    destination_chain: args.destination.chainName,
+    asset: 'INIT',
+    amount: `${formatInitAmount(args.rawAmount)} INIT`,
+    raw_amount: args.rawAmount,
+    estimated_fee_usd: STEP_COST_USD[args.operation],
+    estimated_time_seconds: STEP_TIME_SECONDS[args.operation],
+    requires_previous: args.stepIndex > 0,
     metadata: {
-      channel: getChain(hop.to)?.ibc_channel,
-      bridge_id: getChain(hop.to)?.bridge_id,
-      denom: getAsset(balance.asset)?.base_denom,
+      channel: args.source.ibcChannelToL1,
+      bridge_id: args.destination.bridgeId || args.source.bridgeId,
+      denom: INIT_DENOM,
     },
-  }));
+  };
 }
 
 function buildPlan(
   strategy: StrategyType,
-  balanceRoutes: BalanceRoute[],
-  selectRoute: (routes: Route[]) => Route | null,
-  feeMultiplier: number,
+  baseLabel: string,
+  steps: PlanStep[],
+  totalRawAmount: bigint,
 ): ExecutionPlan | null {
-  const steps: PlanStep[] = [];
-  let totalFee = 0;
-  let totalTime = 0;
-  let totalValueUsd = 0;
-  const chainPath: string[] = [];
-
-  for (const { balance, routes } of balanceRoutes) {
-    const route = selectRoute(routes);
-    if (!route) continue;
-
-    const planSteps = routeToSteps(route, balance, steps.length);
-    steps.push(...planSteps);
-
-    const adjustedFee = route.total_fee_usd * feeMultiplier;
-    totalFee += adjustedFee;
-    totalTime = Math.max(totalTime, route.total_time_seconds); // parallel execution
-    totalValueUsd += balance.value_usd;
-
-    // Build route summary
-    for (const hop of route.hops) {
-      if (!chainPath.includes(hop.from)) chainPath.push(hop.from);
-      if (!chainPath.includes(hop.to)) chainPath.push(hop.to);
-    }
-  }
-
   if (steps.length === 0) return null;
 
-  const netOutputUsd = totalValueUsd - totalFee;
-
-  const labels: Record<StrategyType, string> = {
-    cheapest: 'Cheapest Route',
-    fastest: 'Fastest Route',
-    best_recovery: 'Best Recovery',
-  };
-
-  const riskLevels: Record<StrategyType, 'low' | 'medium' | 'high'> = {
-    cheapest: 'medium',
-    fastest: 'low',
-    best_recovery: 'low',
-  };
+  const totalFee = steps.reduce((sum, step) => sum + step.estimated_fee_usd, 0);
+  const totalTime = steps.reduce((sum, step) => sum + step.estimated_time_seconds, 0);
+  const totalValueUsd = (Number(totalRawAmount) / 10 ** INIT_DECIMALS) * INIT_PRICE_USD;
+  const uniqueChains = Array.from(new Set(
+    steps.flatMap((step) => [step.source_chain, step.destination_chain])
+  ));
 
   return {
     strategy,
-    label: labels[strategy],
+    label: labelForStrategy(strategy, baseLabel),
     steps,
-    total_estimated_fee_usd: Math.round(totalFee * 100) / 100,
+    total_estimated_fee_usd: Number(totalFee.toFixed(2)),
     total_estimated_time_seconds: totalTime,
-    net_output: `$${netOutputUsd.toFixed(2)}`,
-    net_output_usd: netOutputUsd,
-    risk_level: riskLevels[strategy],
-    route_summary: chainPath.map(c => getChain(c)?.pretty_name ?? c).join(' → '),
+    net_output: `$${Math.max(totalValueUsd - totalFee, 0).toFixed(2)}`,
+    net_output_usd: totalValueUsd - totalFee,
+    risk_level: strategy === 'best_recovery' ? 'low' : 'medium',
+    route_summary: uniqueChains
+      .map((chainName) => getChainConfig(chainName)?.prettyName ?? chainName)
+      .join(' → '),
     hop_count: steps.length,
-    warnings: totalFee > totalValueUsd * 0.05 ? ['Fees exceed 5% of total value'] : [],
+    warnings: [],
   };
 }
 
-export function generatePlans(intent: ParsedIntent): PlanGenerationResult {
-  const balances = filterBalances(intent);
-  const destination = resolveDestination(intent);
+function buildStakeSteps(positions: InitPosition[]): PlanStep[] {
+  const steps: PlanStep[] = [];
+  const nonL1Positions = positions.filter((position) => position.chain.chainName !== TESTNET_L1.chainName);
 
-  // Build routes for each balance that's not already at destination
-  const balanceRoutes: BalanceRoute[] = [];
-  for (const balance of balances) {
-    if (balance.chain_name === destination) continue;
-    const routes = buildRoutes(balance.chain_name, destination);
-    if (routes.length > 0) {
-      balanceRoutes.push({ balance, routes });
-    }
-  }
-
-  const plans: ExecutionPlan[] = [];
-
-  // Cheapest: minimize fees (0.8x fee multiplier for batching)
-  const cheapest = buildPlan('cheapest', balanceRoutes, cheapestRoute, 0.8);
-  if (cheapest) plans.push(cheapest);
-
-  // Fastest: fewest hops, lowest time (1.2x fee premium)
-  const fastest = buildPlan('fastest', balanceRoutes, fewestHopsRoute, 1.2);
-  if (fastest) plans.push(fastest);
-
-  // Best Recovery: cheapest route with fallback (1.1x fee multiplier)
-  const recovery = buildPlan('best_recovery', balanceRoutes, cheapestRoute, 1.1);
-  if (recovery) {
-    // Add fallback steps
-    recovery.steps = recovery.steps.map(step => ({
-      ...step,
-      fallback_step: step.operation === 'ibc_transfer'
-        ? { ...step, operation: 'op_bridge_deposit' as const, estimated_time_seconds: step.estimated_time_seconds * 2 }
-        : undefined,
+  for (const position of nonL1Positions) {
+    steps.push(createStep({
+      operation: 'ibc_transfer',
+      source: position.chain,
+      destination: TESTNET_L1,
+      rawAmount: position.rawAmount,
+      stepIndex: steps.length,
     }));
-    plans.push(recovery);
   }
 
-  // Filter by min_net_output
+  const totalRawAmount = positions.reduce((sum, position) => sum + BigInt(position.rawAmount), 0n);
+  if (totalRawAmount > 0n) {
+    steps.push(createStep({
+      operation: 'stake',
+      source: TESTNET_L1,
+      destination: TESTNET_L1,
+      rawAmount: totalRawAmount.toString(),
+      stepIndex: steps.length,
+    }));
+  }
+
+  return steps;
+}
+
+function buildTransferSteps(
+  positions: InitPosition[],
+  destination: ChainConfig,
+): PlanStep[] {
+  const steps: PlanStep[] = [];
+
+  if (destination.chainName === TESTNET_L1.chainName) {
+    const sourcePositions = positions.filter((position) => position.chain.chainName !== TESTNET_L1.chainName);
+    for (const position of sourcePositions) {
+      steps.push(createStep({
+        operation: 'ibc_transfer',
+        source: position.chain,
+        destination: TESTNET_L1,
+        rawAmount: position.rawAmount,
+        stepIndex: steps.length,
+      }));
+    }
+    return steps;
+  }
+
+  const l1Position = positions.find((position) => position.chain.chainName === TESTNET_L1.chainName);
+  if (!l1Position) return [];
+
+  steps.push(createStep({
+    operation: 'op_bridge_deposit',
+    source: TESTNET_L1,
+    destination,
+    rawAmount: l1Position.rawAmount,
+    stepIndex: 0,
+  }));
+
+  return steps;
+}
+
+export function generatePlans(intent: ParsedIntent, balances: ChainBalance[]): PlanGenerationResult {
+  const positions = getInitPositions(intent, balances);
+  const strategy = selectedStrategy(intent);
+  const destination = getChainConfig(resolveDestination(intent), 'testnet') ?? TESTNET_L1;
+
+  let plan: ExecutionPlan | null = null;
+
+  if (intent.action_type === 'stake') {
+    const totalRawAmount = positions.reduce((sum, position) => sum + BigInt(position.rawAmount), 0n);
+    plan = buildPlan(strategy, 'Stake Plan', buildStakeSteps(positions), totalRawAmount);
+  } else {
+    const transferSteps = buildTransferSteps(positions, destination);
+    const label = destination.chainName === TESTNET_L1.chainName ? 'Sweep Plan' : 'Bridge Plan';
+    const totalRawAmount = transferSteps.reduce((sum, step) => sum + BigInt(step.raw_amount), 0n);
+    plan = buildPlan(strategy, label, transferSteps, totalRawAmount);
+  }
+
+  const plans = plan ? [plan] : [];
   const filteredPlans = intent.min_net_output !== null
-    ? plans.filter(p => p.net_output_usd >= intent.min_net_output!)
+    ? plans.filter((entry) => entry.net_output_usd >= intent.min_net_output!)
     : plans;
 
   return {

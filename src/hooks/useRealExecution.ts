@@ -1,14 +1,27 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useInterwovenKit } from '@initia/interwovenkit-react';
+import type { EncodeObject } from '@cosmjs/proto-signing';
 import type { DeliverTxResponse } from '@cosmjs/stargate';
+import { getChainConfig, INIT_DENOM, TESTNET_L1, type ChainConfig } from '@/config/chains';
+import { fetchDenomBalance } from '@/services/balance';
+import { buildOpBridgeDepositMsg, computeMaxSpendableAmount, simulateFeePlan, waitForBalanceIncrease } from '@/services/execution';
 import { buildIbcTransferMsg } from '@/services/ibc-transfer';
 import { buildDelegateMsg, getTopValidator } from '@/services/staking';
-import { TESTNET_L1, INIT_DENOM, type ChainConfig } from '@/config/chains';
-import type { ChainBalance } from '@/services/balance';
+import type { ExecutionResult } from '@/types/flow';
+import type { ExecutionPlan, PlanStep } from '@/types/plan';
 
-export type ExecutionPhase = 'idle' | 'sweeping' | 'waiting_ibc' | 'staking' | 'done' | 'error';
+const INIT_PRICE_USD = 0.85;
+
+export type ExecutionPhase =
+  | 'idle'
+  | 'sweeping'
+  | 'bridging'
+  | 'waiting_ibc'
+  | 'staking'
+  | 'done'
+  | 'error';
 
 export interface ExecutionStep {
   label: string;
@@ -24,187 +37,283 @@ export interface RealExecutionState {
   currentStep: number;
   error: string | null;
   finalTxHash: string | null;
+  result: ExecutionResult | null;
+}
+
+function humanizeStep(step: PlanStep): string {
+  const source = getChainConfig(step.source_chain, 'testnet');
+  const destination = getChainConfig(step.destination_chain, 'testnet');
+
+  switch (step.operation) {
+    case 'ibc_transfer':
+      return `Sweep ${step.amount} from ${source?.prettyName ?? step.source_chain} → ${destination?.prettyName ?? step.destination_chain}`;
+    case 'op_bridge_deposit':
+      return `Bridge ${step.amount} from ${source?.prettyName ?? step.source_chain} → ${destination?.prettyName ?? step.destination_chain}`;
+    case 'stake':
+      return `Stake ${step.amount} on ${destination?.prettyName ?? step.destination_chain}`;
+    default:
+      return `${step.operation} ${step.amount}`;
+  }
+}
+
+function phaseForStep(step: PlanStep): ExecutionPhase {
+  if (step.operation === 'stake') return 'staking';
+  if (step.operation === 'op_bridge_deposit') return 'bridging';
+  return 'sweeping';
+}
+
+function ensureTxSuccess(result: DeliverTxResponse): DeliverTxResponse {
+  if (result.code !== 0) {
+    throw new Error(result.rawLog || `Transaction failed with code ${result.code}`);
+  }
+  return result;
 }
 
 export function useRealExecution() {
-  const { requestTxBlock, waitForTxConfirmation, address, initiaAddress } = useInterwovenKit();
+  const {
+    address,
+    initiaAddress,
+    autoSign,
+    estimateGas,
+    requestTxBlock,
+    submitTxBlock,
+  } = useInterwovenKit();
   const [state, setState] = useState<RealExecutionState>({
     phase: 'idle',
     steps: [],
     currentStep: -1,
     error: null,
     finalTxHash: null,
+    result: null,
   });
 
-  const updateStep = (index: number, update: Partial<ExecutionStep>) => {
-    setState(prev => ({
-      ...prev,
-      steps: prev.steps.map((s, i) => i === index ? { ...s, ...update } : s),
-    }));
-  };
+  const walletAddress = initiaAddress || address;
 
-  /**
-   * Execute sweep: IBC transfer from each minitia to L1, then stake
-   */
-  const executeSweepAndStake = useCallback(async (
-    sweepableChains: ChainBalance[],
-    stakeAfterSweep: boolean,
-  ) => {
-    const receiverAddress = initiaAddress || address;
-    if (!receiverAddress) {
-      setState(prev => ({ ...prev, phase: 'error', error: 'No wallet connected' }));
+  const updateStep = useCallback((index: number, update: Partial<ExecutionStep>) => {
+    setState((prev) => ({
+      ...prev,
+      steps: prev.steps.map((step, stepIndex) => stepIndex === index ? { ...step, ...update } : step),
+    }));
+  }, []);
+
+  const broadcastTx = useCallback(async (params: {
+    chain: ChainConfig;
+    messages: EncodeObject[];
+    feePlan: Awaited<ReturnType<typeof simulateFeePlan>>;
+  }) => {
+    const { chain, messages, feePlan } = params;
+
+    if (autoSign.isEnabledByChain[chain.chainId]) {
+      return ensureTxSuccess(await submitTxBlock({
+        chainId: chain.chainId,
+        messages,
+        fee: feePlan.fee,
+      }));
+    }
+
+    return ensureTxSuccess(await requestTxBlock({
+      chainId: chain.chainId,
+      messages,
+      gas: feePlan.gasLimit,
+      gasAdjustment: feePlan.gasAdjustment,
+      gasPrices: feePlan.gasPrices,
+    }));
+  }, [autoSign.isEnabledByChain, requestTxBlock, submitTxBlock]);
+
+  const executeStep = useCallback(async (step: PlanStep) => {
+    if (!walletAddress) {
+      throw new Error('No wallet connected');
+    }
+
+    const sourceChain = getChainConfig(step.source_chain, 'testnet');
+    const destinationChain = getChainConfig(step.destination_chain, 'testnet');
+
+    if (!sourceChain || !destinationChain) {
+      throw new Error(`Unsupported route: ${step.source_chain} → ${step.destination_chain}`);
+    }
+
+    if (step.operation === 'ibc_transfer') {
+      const sourceBalance = await fetchDenomBalance(sourceChain, walletAddress, INIT_DENOM);
+      const destinationBalance = await fetchDenomBalance(destinationChain, walletAddress, INIT_DENOM);
+      const simulationMsg = buildIbcTransferMsg({
+        sourceChain,
+        senderAddress: walletAddress,
+        receiverAddress: walletAddress,
+        amount: sourceBalance,
+        denom: INIT_DENOM,
+      });
+      const feePlan = await simulateFeePlan({
+        chain: sourceChain,
+        messages: [simulationMsg],
+        estimateGas,
+      });
+      const transferAmount = computeMaxSpendableAmount(sourceBalance, feePlan.feeAmount);
+      if (BigInt(transferAmount) <= 0n) {
+        throw new Error(`Not enough ${sourceChain.prettyName} INIT to cover gas`);
+      }
+
+      const tx = await broadcastTx({
+        chain: sourceChain,
+        messages: [buildIbcTransferMsg({
+          sourceChain,
+          senderAddress: walletAddress,
+          receiverAddress: walletAddress,
+          amount: transferAmount,
+          denom: INIT_DENOM,
+        })],
+        feePlan,
+      });
+
+      setState((prev) => ({ ...prev, phase: 'waiting_ibc' }));
+      await waitForBalanceIncrease({
+        chain: destinationChain,
+        address: walletAddress,
+        baselineAmount: destinationBalance,
+        expectedIncrease: transferAmount,
+      });
+
+      return { tx, feeAmount: feePlan.feeAmount };
+    }
+
+    if (step.operation === 'op_bridge_deposit') {
+      const sourceBalance = await fetchDenomBalance(sourceChain, walletAddress, INIT_DENOM);
+      const destinationBalance = await fetchDenomBalance(destinationChain, walletAddress, INIT_DENOM);
+      const simulationMsg = buildOpBridgeDepositMsg({
+        senderAddress: walletAddress,
+        receiverAddress: walletAddress,
+        amount: sourceBalance,
+        bridgeId: destinationChain.bridgeId,
+      });
+      const feePlan = await simulateFeePlan({
+        chain: sourceChain,
+        messages: [simulationMsg],
+        estimateGas,
+      });
+      const depositAmount = computeMaxSpendableAmount(sourceBalance, feePlan.feeAmount);
+      if (BigInt(depositAmount) <= 0n) {
+        throw new Error('Not enough Initia L1 INIT to cover bridge gas');
+      }
+
+      const tx = await broadcastTx({
+        chain: sourceChain,
+        messages: [buildOpBridgeDepositMsg({
+          senderAddress: walletAddress,
+          receiverAddress: walletAddress,
+          amount: depositAmount,
+          bridgeId: destinationChain.bridgeId,
+        })],
+        feePlan,
+      });
+
+      await waitForBalanceIncrease({
+        chain: destinationChain,
+        address: walletAddress,
+        baselineAmount: destinationBalance,
+        expectedIncrease: depositAmount,
+      });
+
+      return { tx, feeAmount: feePlan.feeAmount };
+    }
+
+    if (step.operation === 'stake') {
+      const validator = await getTopValidator();
+      const l1Balance = await fetchDenomBalance(TESTNET_L1, walletAddress, INIT_DENOM);
+      const simulationMsg = buildDelegateMsg(walletAddress, validator.operatorAddress, l1Balance);
+      const feePlan = await simulateFeePlan({
+        chain: TESTNET_L1,
+        messages: [simulationMsg],
+        estimateGas,
+      });
+      const stakeAmount = computeMaxSpendableAmount(l1Balance, feePlan.feeAmount);
+      if (BigInt(stakeAmount) <= 0n) {
+        throw new Error('Not enough Initia L1 INIT to cover staking gas');
+      }
+
+      const tx = await broadcastTx({
+        chain: TESTNET_L1,
+        messages: [buildDelegateMsg(walletAddress, validator.operatorAddress, stakeAmount)],
+        feePlan,
+      });
+
+      return { tx, feeAmount: feePlan.feeAmount };
+    }
+
+    throw new Error(`Unsupported operation: ${step.operation}`);
+  }, [broadcastTx, estimateGas, walletAddress]);
+
+  const executePlan = useCallback(async (plan: ExecutionPlan) => {
+    if (!walletAddress) {
+      setState((prev) => ({ ...prev, phase: 'error', error: 'No wallet connected' }));
+      return;
+    }
+    if (plan.steps.length === 0) {
+      setState((prev) => ({ ...prev, phase: 'error', error: 'No executable steps in selected plan' }));
       return;
     }
 
-    // Build steps list
-    const steps: ExecutionStep[] = [];
-
-    for (const chainBalance of sweepableChains) {
-      steps.push({
-        label: `IBC Transfer ${chainBalance.totalInitHuman} INIT from ${chainBalance.chain.prettyName} → L1`,
-        chainId: chainBalance.chain.chainId,
-        status: 'pending',
-      });
-    }
-
-    if (stakeAfterSweep) {
-      steps.push({
-        label: 'Stake INIT on Initia L1',
-        chainId: TESTNET_L1.chainId,
-        status: 'pending',
-      });
-    }
+    const steps: ExecutionStep[] = plan.steps.map((step) => ({
+      label: humanizeStep(step),
+      chainId: getChainConfig(step.source_chain, 'testnet')?.chainId ?? TESTNET_L1.chainId,
+      status: 'pending',
+    }));
 
     setState({
-      phase: 'sweeping',
+      phase: phaseForStep(plan.steps[0]),
       steps,
       currentStep: 0,
       error: null,
       finalTxHash: null,
+      result: null,
     });
 
-    // Execute IBC transfers sequentially
-    let stepIndex = 0;
-    for (const chainBalance of sweepableChains) {
-      updateStep(stepIndex, { status: 'active' });
+    const startedAt = Date.now();
+    let totalFeeUsd = 0;
+    let finalTxHash: string | null = null;
+
+    for (const [index, step] of plan.steps.entries()) {
+      setState((prev) => ({
+        ...prev,
+        phase: phaseForStep(step),
+        currentStep: index,
+      }));
+      updateStep(index, { status: 'active' });
 
       try {
-        // Find the INIT denom on this chain
-        const initBalance = chainBalance.balances.find(
-          b => b.denom === INIT_DENOM || b.denom.startsWith('l2/')
-        );
-        const denom = initBalance?.denom ?? INIT_DENOM;
-
-        const msg = buildIbcTransferMsg({
-          sourceChain: chainBalance.chain,
-          senderAddress: address,
-          receiverAddress,
-          amount: chainBalance.totalInitAmount,
-          denom,
-        });
-
-        const result: DeliverTxResponse = await requestTxBlock({
-          messages: [msg],
-          chainId: chainBalance.chain.chainId,
-        });
-
-        if (result.code !== 0) {
-          throw new Error(`TX failed with code ${result.code}`);
-        }
-
-        updateStep(stepIndex, {
-          status: 'complete',
-          txHash: result.transactionHash,
-        });
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Transaction failed';
-        updateStep(stepIndex, { status: 'failed', error: errorMsg });
-        setState(prev => ({ ...prev, phase: 'error', error: errorMsg }));
+        const { tx, feeAmount } = await executeStep(step);
+        finalTxHash = tx.transactionHash;
+        totalFeeUsd += (Number(feeAmount) / 1_000_000) * INIT_PRICE_USD;
+        updateStep(index, { status: 'complete', txHash: tx.transactionHash });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Execution failed';
+        updateStep(index, { status: 'failed', error: message });
+        setState((prev) => ({
+          ...prev,
+          phase: 'error',
+          error: message,
+        }));
         return;
       }
-
-      stepIndex++;
     }
 
-    // Wait for IBC to settle (brief delay for demo)
-    if (stakeAfterSweep) {
-      setState(prev => ({ ...prev, phase: 'waiting_ibc' }));
-      await new Promise(resolve => setTimeout(resolve, 5000));
+    const lastStep = plan.steps[plan.steps.length - 1];
+    const result: ExecutionResult = {
+      success: true,
+      final_state: lastStep?.operation === 'stake'
+        ? 'INIT staked on Initia L1'
+        : `INIT delivered to ${getChainConfig(lastStep?.destination_chain ?? 'initia_l1', 'testnet')?.prettyName ?? 'destination'}`,
+      total_cost_usd: Number(totalFeeUsd.toFixed(2)),
+      total_time_seconds: Math.max(1, Math.round((Date.now() - startedAt) / 1000)),
+      steps_completed: plan.steps.length,
+      total_steps: plan.steps.length,
+    };
 
-      // Execute staking
-      setState(prev => ({ ...prev, phase: 'staking', currentStep: stepIndex }));
-      updateStep(stepIndex, { status: 'active' });
-
-      try {
-        const validator = await getTopValidator();
-
-        // Fetch L1 balance to determine stake amount
-        const l1BalanceRes = await fetch(
-          `${TESTNET_L1.restUrl}/cosmos/bank/v1beta1/balances/${receiverAddress}`
-        );
-        const l1Data = await l1BalanceRes.json();
-        const l1Init = (l1Data.balances ?? []).find(
-          (b: { denom: string }) => b.denom === INIT_DENOM
-        );
-        const availableAmount = l1Init?.amount ?? '0';
-
-        if (parseInt(availableAmount) <= 0) {
-          // IBC might not have completed yet — stake whatever was swept
-          const totalSwept = sweepableChains.reduce(
-            (sum, c) => sum + parseInt(c.totalInitAmount),
-            0
-          );
-          // Leave some for fees
-          const stakeAmount = Math.max(0, totalSwept - 50000).toString();
-
-          if (parseInt(stakeAmount) <= 0) {
-            updateStep(stepIndex, { status: 'failed', error: 'No funds available to stake' });
-            setState(prev => ({ ...prev, phase: 'error', error: 'No funds available to stake' }));
-            return;
-          }
-        }
-
-        // Leave 0.05 INIT for fees
-        const stakeAmount = Math.max(0, parseInt(availableAmount) - 50000).toString();
-
-        const msg = buildDelegateMsg(
-          receiverAddress,
-          validator.operatorAddress,
-          stakeAmount,
-        );
-
-        const result = await requestTxBlock({
-          messages: [msg],
-          chainId: TESTNET_L1.chainId,
-        });
-
-        if (result.code !== 0) {
-          throw new Error(`Staking TX failed with code ${result.code}`);
-        }
-
-        updateStep(stepIndex, {
-          status: 'complete',
-          txHash: result.transactionHash,
-        });
-
-        setState(prev => ({
-          ...prev,
-          phase: 'done',
-          finalTxHash: result.transactionHash,
-        }));
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Staking failed';
-        updateStep(stepIndex, { status: 'failed', error: errorMsg });
-        setState(prev => ({ ...prev, phase: 'error', error: errorMsg }));
-      }
-    } else {
-      setState(prev => ({
-        ...prev,
-        phase: 'done',
-        finalTxHash: prev.steps[prev.steps.length - 1]?.txHash ?? null,
-      }));
-    }
-  }, [address, initiaAddress, requestTxBlock]);
+    setState((prev) => ({
+      ...prev,
+      phase: 'done',
+      finalTxHash,
+      result,
+    }));
+  }, [executeStep, updateStep, walletAddress]);
 
   const reset = useCallback(() => {
     setState({
@@ -213,12 +322,13 @@ export function useRealExecution() {
       currentStep: -1,
       error: null,
       finalTxHash: null,
+      result: null,
     });
   }, []);
 
   return {
     state,
-    executeSweepAndStake,
+    executePlan,
     reset,
   };
 }

@@ -1,17 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { HistoryEntry } from '@/types/flow';
 
 export function RecentHistory() {
-  const [entries, setEntries] = useState<HistoryEntry[]>([]);
-
-  useEffect(() => {
+  const [entries] = useState<HistoryEntry[]>(() => {
     try {
       const raw = localStorage.getItem('intentflow_history');
-      if (raw) setEntries(JSON.parse(raw).slice(0, 3));
+      return raw ? JSON.parse(raw).slice(0, 3) : [];
     } catch { /* noop */ }
-  }, []);
+    return [];
+  });
 
   if (entries.length === 0) return null;
 

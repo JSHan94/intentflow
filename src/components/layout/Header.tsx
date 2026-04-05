@@ -11,9 +11,10 @@ interface HeaderProps {
 }
 
 export function Header({ onHistoryClick, network, onNetworkToggle }: HeaderProps) {
-  const { isConnected, address, openConnect, openWallet, disconnect } = useInterwovenKit();
+  const { isConnected, address, initiaAddress, openConnect, openWallet, disconnect } = useInterwovenKit();
 
-  const truncated = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : '';
+  const displayAddress = initiaAddress || address;
+  const truncated = displayAddress ? `${displayAddress.slice(0, 6)}...${displayAddress.slice(-4)}` : '';
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-5 py-3 bg-[#f5f5f0] border-b-[3px] border-black">
@@ -26,13 +27,14 @@ export function Header({ onHistoryClick, network, onNetworkToggle }: HeaderProps
         {/* Network toggle */}
         <button
           onClick={onNetworkToggle}
-          className={`px-3 py-1.5 border-[3px] border-black font-mono text-[8px] font-black uppercase tracking-[2px] shadow-[2px_2px_0_#000] transition-all ${
-            network === 'mainnet'
+          disabled
+          className={`px-3 py-1.5 border-[3px] border-black font-mono text-[8px] font-black uppercase tracking-[2px] shadow-[2px_2px_0_#000] transition-all cursor-default ${
+            network === 'testnet'
               ? 'bg-[#CCFF00] text-black'
               : 'bg-white text-[#999]'
           }`}
         >
-          {network === 'mainnet' ? '★ Mainnet' : 'Testnet'}
+          {network === 'testnet' ? '★ Testnet' : 'Mainnet'}
         </button>
 
         {onHistoryClick && (

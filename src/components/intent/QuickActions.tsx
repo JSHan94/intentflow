@@ -6,7 +6,7 @@ interface QuickActionsProps {
 
 const ACTIONS = [
   { label: 'Sweep All', intent: 'Sweep all my INIT into Initia L1', color: '#CCFF00' },
-  { label: 'Bridge', intent: 'Bridge my assets to another rollup', color: 'white' },
+  { label: 'Bridge', intent: 'Bridge my INIT from Initia L1 to miniEVM', color: 'white' },
   { label: 'Stake', intent: 'Stake my INIT on Initia L1', color: 'white' },
 ];
 
