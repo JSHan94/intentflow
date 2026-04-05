@@ -106,7 +106,7 @@ export default function Home() {
     <div className="flex flex-col min-h-screen">
       <Header onHistoryClick={() => router.push('/history')} />
 
-      <main className="flex-1 flex flex-col px-4 pt-16 pb-8">
+      <main className="flex-1 flex flex-col px-4 pt-20 pb-8">
         {/* Phase bar — shown during non-dashboard phases */}
         {isConnected && !showDashboard && (
           <div className="w-full max-w-2xl mx-auto mb-6 mt-4">
@@ -160,19 +160,17 @@ export default function Home() {
                 onQuickAction={() => openConnect()}
               />
 
-              <JennieIcon expression="neutral" size="lg" />
-              <h1 className="font-heading text-xl font-bold text-[#1A1A1A]">
+              <h1 className="font-mono text-xl font-black uppercase tracking-[3px]">
                 Welcome to IntentFlow
               </h1>
-              <p className="text-sm text-[#6B6B6B] max-w-sm">
+              <p className="font-mono text-xs text-[#999] max-w-sm">
                 Describe what you want to do across Initia rollups in natural language. Connect your wallet to get started.
               </p>
               <button
                 onClick={openConnect}
-                className="px-6 py-2.5 rounded-md bg-[#0D9488] text-white font-mono text-xs font-semibold
-                  border-2 border-[#0A7A70] hover:bg-[#0A7A70] transition-colors"
+                className="px-6 py-3 border-[3px] border-black bg-[#FF5733] text-white font-mono text-[11px] font-black uppercase tracking-[2px] shadow-[4px_4px_0_#000] hover:shadow-[6px_6px_0_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all"
               >
-                Connect Wallet
+                Connect Wallet →
               </button>
             </motion.div>
           </div>
